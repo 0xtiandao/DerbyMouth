@@ -24,6 +24,7 @@ import { TEAMS } from '../data/teams';
 import { SCENES } from './keys';
 import { addText, makeTextButton, setupView } from './ui';
 import {
+  BanterLog,
   CardView,
   InspirationBubble,
   MfBar,
@@ -62,6 +63,7 @@ export class BattleScene extends Phaser.Scene {
   private playerBubble!: SpeechBubble;
   private npcBubble!: SpeechBubble;
   private npcBrain!: NpcBrain;
+  private banterLog!: BanterLog;
 
   constructor() {
     super(SCENES.BATTLE);
@@ -133,9 +135,12 @@ export class BattleScene extends Phaser.Scene {
     }).setOrigin(0, 0.5);
     this.mfBarPlayer = new MfBar(this, 40, 500, 460, 20, 0x22c55e);
 
-    // ----- Speech bubble 2 bên (player trái, NPC phải) -----
+    // ----- Speech bubble 2 bên (player trái, NPC trên avatar — nhường chỗ banter log) -----
     this.playerBubble = new SpeechBubble(this, 330, 350, 'left');
-    this.npcBubble = new SpeechBubble(this, 900, 172, 'left');
+    this.npcBubble = new SpeechBubble(this, 660, 150, 'left');
+
+    // ----- Banter log: lịch sử hội thoại, bên phải dưới timer -----
+    this.banterLog = new BanterLog(this, 920, 72, 330, 385);
 
     // ----- NPC brain v1 (task 1.7) -----
     this.npcBrain = new NpcBrain(this.opponent, now);
@@ -220,7 +225,9 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // 2) câu roast theo content type (Phase 2 thay bằng AI buffer, fallback giữ nguyên)
-    this.playerBubble.show(this.pickRoast(card.content, 'player'), CONTENT_COLORS[card.content]);
+    const line = this.pickRoast(card.content, 'player');
+    this.playerBubble.show(line, CONTENT_COLORS[card.content]);
+    this.banterLog.push('YOU', line, CONTENT_COLORS[card.content]);
     this.burstParticles(330, 395, CONTENT_COLORS[card.content]);
 
     // 3) damage qua core: style buff + counter + combo + mark, trừ MF NPC
@@ -243,8 +250,10 @@ export class BattleScene extends Phaser.Scene {
   /** NPC chơi card (task 1.7): bubble phải + trừ MF player — cùng đường core với player. */
   private npcPlay(card: CardDef, now: number) {
     if (!this.inspiration.opponent.spend(card.cost)) return; // brain đọc state cũ — bỏ lượt
-    this.npcBubble.show(this.pickRoast(card.content, 'opponent'), CONTENT_COLORS[card.content]);
-    this.burstParticles(900, 215, CONTENT_COLORS[card.content]);
+    const line = this.pickRoast(card.content, 'opponent');
+    this.npcBubble.show(line, CONTENT_COLORS[card.content]);
+    this.banterLog.push(this.opponent.team.id, line, CONTENT_COLORS[card.content]);
+    this.burstParticles(660, 190, CONTENT_COLORS[card.content]);
 
     const result = resolveCardPlay(card, this.opponent, this.player, now);
     this.showHitFeedback(result, 'player');

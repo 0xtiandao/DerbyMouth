@@ -98,6 +98,9 @@
   - StyleSystem.onSwitch → float "→ StyleName" cả 2 bên.
   - Test tay: NPC nói mỗi 3-5s pool đúng style, switch Rebuttal→Filibuster lúc ~25s,
     badge +25% phía player TỰ BẬT đúng RPS, MF player giảm từng đòn khớp số.
+- (extra, theo yêu cầu) Banter log: panel lịch sử hội thoại bên phải dưới timer —
+  entry mới vào đáy, cũ đẩy lên + mờ dần, tràn khung thì bỏ; màu chữ theo content type,
+  speaker = YOU / mã đội NPC. NPC bubble dời lên trên avatar để nhường chỗ.
 
 ### 1.8. Win/lose + sudden death
 - [ ] MF về 0 → ResultScene

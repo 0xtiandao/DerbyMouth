@@ -257,6 +257,64 @@ export class SpeechBubble extends Phaser.GameObjects.Container {
   }
 }
 
+/** Lịch sử hội thoại chửi nhau (banter log): entry mới vào đáy, cũ đẩy lên trên,
+ *  tràn khung thì bỏ. Màu chữ theo content type của câu roast. */
+export class BanterLog extends Phaser.GameObjects.Container {
+  private entries: Phaser.GameObjects.Text[] = [];
+  private readonly pad = 10;
+  private readonly topLimit = 32; // chừa chỗ title
+
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    private readonly boxW: number,
+    private readonly boxH: number,
+  ) {
+    super(scene, x, y);
+    const bg = scene.add
+      .rectangle(0, 0, boxW, boxH, 0x000000, 0.35)
+      .setOrigin(0)
+      .setStrokeStyle(1, 0xffffff, 0.18);
+    const title = addText(scene, this.pad, 8, 'BANTER LOG', {
+      fontSize: '12px',
+      color: '#776655',
+      fontStyle: 'bold',
+    });
+    this.add([bg, title]);
+    scene.add.existing(this);
+  }
+
+  push(speaker: string, line: string, accent: number) {
+    const color = '#' + accent.toString(16).padStart(6, '0');
+    const t = addText(this.scene, this.pad, 0, `${speaker}: ${line}`, {
+      fontSize: '13px',
+      color,
+      wordWrap: { width: this.boxW - this.pad * 2 },
+      lineSpacing: 2,
+    });
+    this.add(t);
+    this.entries.push(t);
+    this.relayout();
+  }
+
+  private relayout() {
+    let yCursor = this.boxH - this.pad;
+    for (let i = this.entries.length - 1; i >= 0; i--) {
+      const t = this.entries[i];
+      yCursor -= t.height;
+      if (yCursor < this.topLimit) {
+        // hết chỗ → bỏ entry này và mọi entry cũ hơn
+        this.entries.splice(0, i + 1).forEach((old) => old.destroy());
+        break;
+      }
+      t.setY(yCursor);
+      t.setAlpha(i === this.entries.length - 1 ? 1 : 0.65);
+      yCursor -= 8;
+    }
+  }
+}
+
 /** 1 lá bài trên tay: khung + cost + tên + dải màu content type. */
 export class CardView extends Phaser.GameObjects.Container {
   static readonly W = 140;
