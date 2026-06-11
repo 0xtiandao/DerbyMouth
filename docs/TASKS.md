@@ -177,11 +177,25 @@
     quiz ai ✓ (fact đúng — Lahm captain 2014), fallback ✓ (khi Gemini 503 thật),
     rate limit 30/phút ✓ (35 request → 4×429).
 
-### 2.4. Client buffer
-- [ ] api.ts: fetch batch đầu trận, buffer RAM theo content type
-- [ ] Lấy câu 0ms khi chơi card, refill ngầm khi buffer < 4 câu
-- [ ] Buffer riêng cho trash talk menu (bộ 3 câu)
-- [ ] Toàn bộ lỗi mạng → rơi về fallbackRoasts, game không bao giờ đứng
+### 2.4. Client buffer ✅
+- [x] api.ts: fetch batch đầu trận, buffer RAM theo content type
+- [x] Lấy câu 0ms khi chơi card, refill ngầm khi buffer < 4 câu
+- [x] Buffer riêng cho trash talk menu (bộ 3 câu)
+- [x] Toàn bộ lỗi mạng → rơi về fallbackRoasts, game không bao giờ đứng
+- Ghi chú (2026-06-12):
+  - `src/api.ts` RoastBuffer: buffer 1 CHIỀU theo người nói → BattleScene tạo 2 instance
+    (player→NPC và NPC→player), NPC cũng nói câu AI.
+  - Kèm buffer quiz (1 câu prefetch) — quiz/trash talk chỉ prime phía player.
+  - prime() không await — fallback gánh tới khi buffer về; gửi 8 câu gần nhất làm avoid list.
+  - FETCH_TIMEOUT 25s (batch AI lạnh mất 15-20s; refill ngầm nên chờ được); refill tự hồi
+    khi được gọi lại lúc low-water → mạng chết giữa trận vẫn tự phục hồi.
+  - API_BASE: localhost → http://127.0.0.1:8787; deploy → cùng origin /api/*.
+  - Test e2e (vite + worker + key thật): bubble hiện câu AI đúng ngữ cảnh 2 đội
+    ("Mbappe's speed vs. your slow backline?"), chuyển mượt fallback→AI giữa trận,
+    log refill cả 2 chiều.
+
+**CHECKPOINT PHASE 2 (local): QTE + quiz + AI thật chạy trong game.
+Còn lại cho deploy (Phase 5): KV namespace thật + wrangler secret + siết CORS.**
 
 ## PHASE 3 — Polish PVE
 - [ ] Mark/debuff effects còn lại trong cards.ts (F1 slow regen, F2 shield, F4 cost+1, B2 buff next, P2 mark...)

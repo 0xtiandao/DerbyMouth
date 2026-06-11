@@ -8,6 +8,7 @@ import type {
   CombatantState,
   ContentType,
   DamageBreakdown,
+  QuizQuestion,
   ResultSceneData,
   Side,
   Style,
@@ -26,9 +27,9 @@ import { NpcBrain } from '../core/NpcBrain';
 import { StyleSystem } from '../core/StyleSystem';
 import { TrashTalkQTE } from '../core/TrashTalkQTE';
 import type { QteKey } from '../core/TrashTalkQTE';
-import { pickQuizFor, resolveNpcAnswer, shuffledAnswers } from '../core/quiz';
+import { resolveNpcAnswer, shuffledAnswers } from '../core/quiz';
+import { RoastBuffer } from '../api';
 import { cardsByStyle } from '../data/cards';
-import { FALLBACK_ROASTS, FALLBACK_TRASHTALK } from '../data/fallbackRoasts';
 import { TEAMS } from '../data/teams';
 import { SCENES } from './keys';
 import { addText, setupView } from './ui';
@@ -61,9 +62,9 @@ export class BattleScene extends Phaser.Scene {
   private styles!: StyleSystem;
   private matchEndAt = 0;
   private hand: CardDef[] = [];
-  private lastRoast = '';
   private ending = false; // đã có bên thắng — đợi chuyển ResultScene
   private nextSuddenDrainAt = 0;
+  private roastApi!: Record<Side, RoastBuffer>;
 
   private mfBarPlayer!: MfBar;
   private mfBarOpp!: MfBar;
@@ -83,7 +84,7 @@ export class BattleScene extends Phaser.Scene {
   private npcAvatar!: Phaser.GameObjects.Arc;
   private quizPanel!: QuizPanel;
   private npcBadge: Phaser.GameObjects.Container | null = null;
-  private pendingQuiz: ReturnType<typeof pickQuizFor> | null = null;
+  private pendingQuiz: QuizQuestion | null = null;
 
   constructor() {
     super(SCENES.BATTLE);
@@ -117,7 +118,15 @@ export class BattleScene extends Phaser.Scene {
     this.matchEndAt = now + BALANCE.MATCH_TIMER_MS;
     this.nextSuddenDrainAt = this.matchEndAt; // drain đầu tiên đúng lúc 0:00
     this.ending = false;
-    this.lastRoast = '';
+
+    // AI buffer 2 chiều (task 2.4): nạp đầu trận, lấy 0ms, lỗi mạng → fallback
+    this.roastApi = {
+      player: new RoastBuffer(this.player.team, this.opponent.team),
+      opponent: new RoastBuffer(this.opponent.team, this.player.team),
+    };
+    this.roastApi.player.primeRoasts();
+    this.roastApi.player.primeTrashTalkAndQuiz(); // QTE/quiz chỉ phía player
+    this.roastApi.opponent.primeRoasts();
 
     // Hand đầu trận: 4 lá từ pool style đã chọn
     this.hand = Phaser.Utils.Array.Shuffle([...cardsByStyle(this.playerStyle)]).slice(
@@ -390,12 +399,12 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private openTrashTalkMenu() {
-    // bộ 3 option từ fallback (Phase 2.4: thay bằng buffer AI). Kind: heavy/recover/silence.
+    // bộ 3 option từ AI buffer (task 2.4), rỗng → fallback. Kind: heavy/recover/silence.
     // DẠNG B (task 2.2): với TT_QUIZ_OPTION_CHANCE, slot heavy (risk cao) bị thay bằng QUIZ.
-    const set = [...Phaser.Utils.Array.GetRandom(FALLBACK_TRASHTALK)];
+    const set = [...this.roastApi.player.nextTrashTalkSet().set];
     this.pendingQuiz = null;
     if (Math.random() < BALANCE.TT_QUIZ_OPTION_CHANCE) {
-      this.pendingQuiz = pickQuizFor(this.opponent.team.id);
+      this.pendingQuiz = this.roastApi.player.nextQuiz().quiz;
       set[0] = { text: `Pub quiz: "${this.pendingQuiz.q}"`, kind: 'quiz' };
     }
 
@@ -464,7 +473,7 @@ export class BattleScene extends Phaser.Scene {
 
   /** Chạy 1 lượt quiz: player hỏi → NPC trả lời theo % độ khó.
    *  NPC sai = +bonusDmg + badge "fan nửa mùa" (kèm mark). NPC đúng = phản damage. */
-  private runQuiz(quiz: ReturnType<typeof pickQuizFor>, bonusDmg: number) {
+  private runQuiz(quiz: QuizQuestion, bonusDmg: number) {
     const now = this.time.now;
     const npcName = `${this.opponent.team.name} fan`;
     const npcAns = resolveNpcAnswer(quiz);
@@ -588,7 +597,8 @@ export class BattleScene extends Phaser.Scene {
         // P5 Pub Quiz Challenge (task 2.2): ép mini-quiz ngay, value = bonus dmg nếu NPC sai
         case 'forceQuiz': {
           if (attacker !== 'player') break;
-          this.runQuiz(pickQuizFor(this.opponent.team.id), fx.value ?? BALANCE.QUIZ_WRONG_BONUS_DMG);
+          const { quiz } = this.roastApi.player.nextQuiz();
+          this.runQuiz(quiz, fx.value ?? BALANCE.QUIZ_WRONG_BONUS_DMG);
           break;
         }
         default:
@@ -605,17 +615,13 @@ export class BattleScene extends Phaser.Scene {
     return Phaser.Utils.Array.GetRandom(choices.length > 0 ? choices : pool);
   }
 
-  /** Roast hardcode theo content type, né lặp câu liền trước, thay {OPP}/{MY} theo người nói. */
+  /** Câu roast theo content type: AI buffer 0ms, rỗng → fallback hardcode (task 2.4).
+   *  {OPP}/{MY} chỉ có trong fallback lines — replace vô hại với câu AI. */
   private pickRoast(content: ContentType, speaker: Side): string {
-    const pool = FALLBACK_ROASTS[content];
-    let line = Phaser.Utils.Array.GetRandom(pool);
-    if (line === this.lastRoast && pool.length > 1) {
-      line = pool[(pool.indexOf(line) + 1) % pool.length];
-    }
-    this.lastRoast = line;
+    const { text } = this.roastApi[speaker].nextRoast(content);
     const myTeam = speaker === 'player' ? this.player.team.name : this.opponent.team.name;
     const oppTeam = speaker === 'player' ? this.opponent.team.name : this.player.team.name;
-    return line.replaceAll('{OPP}', oppTeam).replaceAll('{MY}', myTeam);
+    return text.replaceAll('{OPP}', oppTeam).replaceAll('{MY}', myTeam);
   }
 
   /** Đồng hồ trận (đếm ngược) — dùng cho timer + mốc giờ trong banter log. */
