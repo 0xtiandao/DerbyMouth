@@ -156,12 +156,26 @@
   - Test tay: NPC đúng (reflect -60 ✓ MF khớp) + NPC sai (-80 + badge + đòn sau dính mark
     45×1.25×1.1=62 ✓). Quiz đúng đội khi có (GER), fallback khi không (USA).
 
-### 2.3. Cloudflare Worker (thư mục worker/)
-- [ ] wrangler init, endpoint /api/roast/batch + /api/trashtalk/batch + /api/quiz
-- [ ] Secret AI_API_KEY (wrangler secret put), KHÔNG hardcode
-- [ ] Prompt theo docs/PLAN.md mục 3 (4 content type + boundaries + JSON output)
-- [ ] KV cache + rate limit per-IP
-- [ ] Trả fallback list khi API lỗi
+### 2.3. Cloudflare Worker (thư mục worker/) ✅ (local — deploy ở Phase 5)
+- [x] wrangler init, endpoint /api/roast/batch + /api/trashtalk/batch + /api/quiz
+- [x] Secret AI_API_KEY (wrangler secret put), KHÔNG hardcode
+- [x] Prompt theo docs/PLAN.md mục 3 (4 content type + boundaries + JSON output)
+- [x] KV cache + rate limit per-IP
+- [x] Trả fallback list khi API lỗi
+- Ghi chú (2026-06-12):
+  - wrangler 4.100 devDependency (root); `npm run worker:dev` (local) + `worker:check` (tsc).
+  - Local key ở `worker/.dev.vars` (gitignored, đã verify check-ignore). Deploy thật:
+    `wrangler secret put AI_API_KEY` + tạo KV namespace thay LOCAL_PLACEHOLDER trong wrangler.toml
+    + siết CORS origin.
+  - Roast: 1 call Gemini sinh CẢ 4 content type × 12 câu (ít call → rẻ), cache KV theo
+    (content + cặp đội) TTL 6h. Trash talk: pool 6 bộ/call TTL 1h. Quiz: pool 8 câu/đội/độ khó
+    TTL 30 ngày.
+  - Model: gemini-2.5-flash, retry 1 lần lỗi 5xx/429, vẫn fail → backup gemini-2.5-flash-lite
+    (đã gặp 503 thật trong lúc test → thêm tầng này).
+  - Worker import FALLBACK_* + types từ ../src (DRY, wrangler tự bundle).
+  - Đã test local với key thật: roast ai→cache ✓ (12 câu/loại, chất lượng ổn), trashtalk ai ✓,
+    quiz ai ✓ (fact đúng — Lahm captain 2014), fallback ✓ (khi Gemini 503 thật),
+    rate limit 30/phút ✓ (35 request → 4×429).
 
 ### 2.4. Client buffer
 - [ ] api.ts: fetch batch đầu trận, buffer RAM theo content type

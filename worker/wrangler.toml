@@ -1,0 +1,10 @@
+# DerbyMouth AI proxy worker — local dev: `npm run worker:dev`
+# Deploy thật (Phase 5): `wrangler kv namespace create CACHE` rồi thay id bên dưới,
+# đặt secret bằng `wrangler secret put AI_API_KEY` (local dùng worker/.dev.vars).
+name = "derbymouth-worker"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "LOCAL_PLACEHOLDER_REPLACE_ON_DEPLOY"
