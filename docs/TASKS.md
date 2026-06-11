@@ -140,9 +140,21 @@
   - Test tay (chance 1.0 + window 4s tạm, revert rồi): prompt ✓ miss ✓ wrong key ✓ menu 3 option
     đúng tag ✓ pick recover → -40 MF + log vàng + không tốn Inspiration ✓.
 
-### 2.2. Quiz mechanic (PVE)
-- [ ] Option quiz trong menu: câu hỏi 4 đáp án về đội NPC (data tĩnh trước, AI sau)
-- [ ] NPC % trả lời đúng theo độ khó; sai = +80 dmg + badge "fan nửa mùa" hiện trên đầu
+### 2.2. Quiz mechanic (PVE) ✅
+- [x] Option quiz trong menu: câu hỏi 4 đáp án về đội NPC (data tĩnh trước, AI sau)
+- [x] NPC % trả lời đúng theo độ khó; sai = +80 dmg + badge "fan nửa mùa" hiện trên đầu
+- Ghi chú (2026-06-12) — quyết định thiết kế:
+  - `core/quiz.ts`: npcCorrectChance (easy 65/medium 45/hard 25%), pickQuizFor (ưu tiên đội NPC,
+    fallback pool chung), resolveNpcAnswer, shuffledAnswers — RNG inject, 12 test (tổng 137).
+  - Quiz option THAY slot heavy trong menu (TT_QUIZ_OPTION_CHANCE 35%) — cùng slot risk cao.
+  - NPC đúng → phản QUIZ_CORRECT_REFLECT_DMG 60 lên player ("-60 REFLECT").
+  - NPC sai → +80 dmg + badge "🤡 PLASTIC FAN" trên đầu 8s KÈM mark +10% (tận dụng cơ chế
+    mark có sẵn — badge vừa nhục vừa là debuff thật).
+  - P5 Pub Quiz Challenge (forceQuiz) wire luôn vào cùng đường runQuiz.
+  - Câu hỏi + câu trả lời NPC đều vào banter log (hỏi accent xanh lá; NPC sai accent đỏ).
+  - UI `scenes/battle/quiz.ts`: panel 4 đáp án 2x2, NPC nghĩ 1.6s → highlight → reveal màu.
+  - Test tay: NPC đúng (reflect -60 ✓ MF khớp) + NPC sai (-80 + badge + đòn sau dính mark
+    45×1.25×1.1=62 ✓). Quiz đúng đội khi có (GER), fallback khi không (USA).
 
 ### 2.3. Cloudflare Worker (thư mục worker/)
 - [ ] wrangler init, endpoint /api/roast/batch + /api/trashtalk/batch + /api/quiz

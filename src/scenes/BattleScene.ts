@@ -26,6 +26,7 @@ import { NpcBrain } from '../core/NpcBrain';
 import { StyleSystem } from '../core/StyleSystem';
 import { TrashTalkQTE } from '../core/TrashTalkQTE';
 import type { QteKey } from '../core/TrashTalkQTE';
+import { pickQuizFor, resolveNpcAnswer, shuffledAnswers } from '../core/quiz';
 import { cardsByStyle } from '../data/cards';
 import { FALLBACK_ROASTS, FALLBACK_TRASHTALK } from '../data/fallbackRoasts';
 import { TEAMS } from '../data/teams';
@@ -41,6 +42,7 @@ import {
   StyleSwitchButton,
 } from './battle/widgets';
 import { QtePromptView, TrashTalkMenu } from './battle/qte';
+import { QuizPanel } from './battle/quiz';
 
 const ALL_STYLES = Object.keys(STYLE_LABELS) as Style[];
 const NPC_POS = { x: VIEW.W / 2, y: 250 } as const;
@@ -79,6 +81,9 @@ export class BattleScene extends Phaser.Scene {
   private qtePrompt!: QtePromptView;
   private ttMenu!: TrashTalkMenu;
   private npcAvatar!: Phaser.GameObjects.Arc;
+  private quizPanel!: QuizPanel;
+  private npcBadge: Phaser.GameObjects.Container | null = null;
+  private pendingQuiz: ReturnType<typeof pickQuizFor> | null = null;
 
   constructor() {
     super(SCENES.BATTLE);
@@ -170,6 +175,11 @@ export class BattleScene extends Phaser.Scene {
     this.ttMenu = new TrashTalkMenu(this);
     this.input.keyboard?.on('keydown-Q', () => this.onQtePress('Q'));
     this.input.keyboard?.on('keydown-E', () => this.onQtePress('E'));
+
+    // ----- Quiz PVE (task 2.2) -----
+    this.quizPanel = new QuizPanel(this);
+    this.npcBadge = null;
+    this.pendingQuiz = null;
 
     // float thông báo khi 1 bên đổi style (nghe event từ StyleSystem)
     this.styles.onSwitch((e) => {
@@ -381,13 +391,21 @@ export class BattleScene extends Phaser.Scene {
 
   private openTrashTalkMenu() {
     // bộ 3 option từ fallback (Phase 2.4: thay bằng buffer AI). Kind: heavy/recover/silence.
-    const set = Phaser.Utils.Array.GetRandom(FALLBACK_TRASHTALK);
+    // DẠNG B (task 2.2): với TT_QUIZ_OPTION_CHANCE, slot heavy (risk cao) bị thay bằng QUIZ.
+    const set = [...Phaser.Utils.Array.GetRandom(FALLBACK_TRASHTALK)];
+    this.pendingQuiz = null;
+    if (Math.random() < BALANCE.TT_QUIZ_OPTION_CHANCE) {
+      this.pendingQuiz = pickQuizFor(this.opponent.team.id);
+      set[0] = { text: `Pub quiz: "${this.pendingQuiz.q}"`, kind: 'quiz' };
+    }
+
     const medium = Math.round((BALANCE.TT_STANDARD_HIT * BALANCE.TT_MEDIUM_DMG_PCT) / 100);
     const heavy = Math.round((BALANCE.TT_STANDARD_HIT * BALANCE.TT_HEAVY_DMG_PCT) / 100);
     const tagOf = (kind: string) =>
       kind === 'heavy' ? `DMG ${heavy}`
       : kind === 'recover' ? `DMG ${medium} · +${BALANCE.TT_RECOVER_INSPIRATION} INSP`
-      : `DMG ${medium} · SILENCE`;
+      : kind === 'silence' ? `DMG ${medium} · SILENCE`
+      : `QUIZ · NPC sai = +${BALANCE.QUIZ_WRONG_BONUS_DMG}`;
 
     this.ttMenu.show(
       set.map((o) => ({ text: this.fillTeams(o.text), tag: tagOf(o.kind) })),
@@ -400,6 +418,12 @@ export class BattleScene extends Phaser.Scene {
     if (!this.qte.choose(now)) return; // menu đã timeout
     this.ttMenu.hide();
     const { kind } = option;
+
+    // DẠNG B: quiz — risk/reward riêng, không phải đòn thường
+    if (kind === 'quiz') {
+      if (this.pendingQuiz) this.runQuiz(this.pendingQuiz, BALANCE.QUIZ_WRONG_BONUS_DMG);
+      return;
+    }
 
     // câu trash talk là lời player nói → bubble + banter log (accent vàng)
     const line = this.fillTeams(option.text);
@@ -434,6 +458,76 @@ export class BattleScene extends Phaser.Scene {
 
     // NPC "bối rối"
     this.tweens.add({ targets: this.npcAvatar, x: NPC_POS.x + 8, duration: 50, yoyo: true, repeat: 5 });
+  }
+
+  // ================= task 2.2: Quiz PVE =================
+
+  /** Chạy 1 lượt quiz: player hỏi → NPC trả lời theo % độ khó.
+   *  NPC sai = +bonusDmg + badge "fan nửa mùa" (kèm mark). NPC đúng = phản damage. */
+  private runQuiz(quiz: ReturnType<typeof pickQuizFor>, bonusDmg: number) {
+    const now = this.time.now;
+    const npcName = `${this.opponent.team.name} fan`;
+    const npcAns = resolveNpcAnswer(quiz);
+
+    // player "hỏi" → bubble + log (quiz = đòn fan-shaming, accent xanh lá)
+    const green = 0x22c55e;
+    this.playerBubble.show(quiz.q, green);
+    this.banterLog.push({
+      side: 'player', name: 'You', time: this.clockLabel(now),
+      line: quiz.q, accent: green, avatarColor: this.player.team.color,
+    });
+
+    this.quizPanel.run({
+      question: quiz.q,
+      answers: shuffledAnswers(quiz),
+      npcAnswer: npcAns.answer,
+      correctAnswer: quiz.correct,
+      npcName,
+      onReveal: (correct) => {
+        const revealNow = this.time.now;
+        this.banterLog.push({
+          side: 'opponent', name: npcName, time: this.clockLabel(revealNow),
+          line: npcAns.answer, accent: correct ? green : 0xef4444,
+          avatarColor: this.opponent.team.color,
+        });
+        if (correct) {
+          // NPC đúng → phản damage lại người hỏi
+          const { mfLoss } = applyDamage(this.player, BALANCE.QUIZ_CORRECT_REFLECT_DMG);
+          this.floatText(HIT_POS.player.x, HIT_POS.player.y, `-${mfLoss} REFLECT`, '#ef4444', 0, '26px');
+        } else {
+          // NPC sai → damage lớn + badge "fan nửa mùa" + mark (nhận thêm dmg)
+          const { mfLoss } = applyDamage(this.opponent, bonusDmg);
+          this.floatText(HIT_POS.opponent.x, HIT_POS.opponent.y, `-${mfLoss}`, '#22c55e', 0, '36px');
+          this.opponent.marks.push({
+            value: BALANCE.QUIZ_BADGE_MARK_VALUE,
+            expiresAt: revealNow + BALANCE.QUIZ_BADGE_DURATION_MS,
+          });
+          this.showNpcBadge('🤡 PLASTIC FAN', BALANCE.QUIZ_BADGE_DURATION_MS);
+          this.cameras.main.shake(130, 0.005);
+        }
+        this.tweens.add({ targets: this.npcAvatar, x: NPC_POS.x + 8, duration: 50, yoyo: true, repeat: 5 });
+      },
+      onDone: () => {},
+    });
+  }
+
+  /** Badge nhục trên đầu NPC, tự biến mất sau durationMs. */
+  private showNpcBadge(text: string, durationMs: number) {
+    this.npcBadge?.destroy();
+    const label = addText(this, 0, 0, text, {
+      fontSize: '15px', color: '#1a120b', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const bg = this.add
+      .rectangle(0, 0, label.width + 20, 28, 0xfddb00, 1)
+      .setStrokeStyle(2, 0xef4444);
+    const badge = this.add.container(NPC_POS.x, NPC_POS.y - 78, [bg, label]).setDepth(6);
+    this.npcBadge = badge;
+    badge.setScale(0);
+    this.tweens.add({ targets: badge, scale: 1, duration: 200, ease: 'Back.easeOut' });
+    this.time.delayedCall(durationMs, () => {
+      if (this.npcBadge === badge) this.npcBadge = null;
+      badge.destroy();
+    });
   }
 
   /** NPC bubble flash khi prompt xuất hiện (nếu bubble đang hiện). */
@@ -489,6 +583,12 @@ export class BattleScene extends Phaser.Scene {
           if (attacker !== 'player') break;
           this.qte.applyAnger(now);
           this.floatText(NPC_POS.x, NPC_POS.y - 80, 'NPC TILTED', '#ff6b4a', 120, '20px');
+          break;
+        }
+        // P5 Pub Quiz Challenge (task 2.2): ép mini-quiz ngay, value = bonus dmg nếu NPC sai
+        case 'forceQuiz': {
+          if (attacker !== 'player') break;
+          this.runQuiz(pickQuizFor(this.opponent.team.id), fx.value ?? BALANCE.QUIZ_WRONG_BONUS_DMG);
           break;
         }
         default:

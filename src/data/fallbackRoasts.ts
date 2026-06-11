@@ -1,6 +1,6 @@
 // src/data/fallbackRoasts.ts — roast hardcode: dùng cho Phase 1 + fallback khi API lỗi.
 // {OPP} = tên đội đối thủ, {MY} = đội mình. Thay bằng team.name lúc runtime.
-import type { ContentType, TrashTalkOption } from '../types';
+import type { ContentType, QuizQuestion, TrashTalkOption } from '../types';
 
 export const FALLBACK_ROASTS: Record<ContentType, string[]> = {
   rational: [
@@ -57,7 +57,7 @@ export const FALLBACK_TRASHTALK: TrashTalkOption[][] = [
 ];
 
 // Quiz tĩnh mẫu (Phase 2.2 PVE — thay bằng AI pool sau, NHỚ verify đáp án khi thêm)
-export const SAMPLE_QUIZ = [
+export const SAMPLE_QUIZ: QuizQuestion[] = [
   {
     teamId: 'BRA', difficulty: 'easy' as const,
     q: "How many World Cups has Brazil won?",

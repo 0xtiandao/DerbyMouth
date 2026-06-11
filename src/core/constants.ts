@@ -35,6 +35,15 @@ export const BALANCE = {
   TT_MENU_TIMEOUT_MS: 5000,     // menu 3 option tự đóng nếu không chọn
   QUIZ_WRONG_BONUS_DMG: 80,
   QUIZ_ANSWER_TIME_MS: 6000,    // PVP: thời gian đối thủ trả lời quiz
+  // Quiz PVE (task 2.2)
+  TT_QUIZ_OPTION_CHANCE: 0.35,  // xác suất option heavy trong menu bị thay bằng quiz
+  QUIZ_NPC_CORRECT_EASY: 0.65,  // % NPC trả lời đúng theo độ khó
+  QUIZ_NPC_CORRECT_MEDIUM: 0.45,
+  QUIZ_NPC_CORRECT_HARD: 0.25,
+  QUIZ_CORRECT_REFLECT_DMG: 60, // NPC đúng → phản damage lại người hỏi
+  QUIZ_THINK_MS: 1600,          // NPC "suy nghĩ" trước khi trả lời
+  QUIZ_BADGE_DURATION_MS: 8000, // badge "fan nửa mùa" + mark tồn tại bao lâu
+  QUIZ_BADGE_MARK_VALUE: 10,    // badge kèm mark +10% dmg nhận vào (dùng cơ chế mark có sẵn)
 
   // NPC
   NPC_PLAY_INTERVAL_MIN_MS: 3000,

@@ -544,6 +544,48 @@ import { TrashTalkQTE } from './TrashTalkQTE';
   check('menu timeout về idle', qte.currentPhase, 'idle');
 }
 
+// ============================================================
+// Task 2.2 — Quiz PVE
+// ============================================================
+import { npcCorrectChance, pickQuizFor, resolveNpcAnswer, shuffledAnswers } from './quiz';
+import { SAMPLE_QUIZ } from '../data/fallbackRoasts';
+
+// ---------- 32. npcCorrectChance theo độ khó ----------
+{
+  check('easy', npcCorrectChance('easy'), BALANCE.QUIZ_NPC_CORRECT_EASY);
+  check('medium', npcCorrectChance('medium'), BALANCE.QUIZ_NPC_CORRECT_MEDIUM);
+  check('hard', npcCorrectChance('hard'), BALANCE.QUIZ_NPC_CORRECT_HARD);
+}
+
+// ---------- 33. pickQuizFor: ưu tiên đội, fallback random ----------
+{
+  const q = pickQuizFor('BRA', () => 0);
+  check('quiz đúng đội BRA', q.teamId, 'BRA');
+  const fallback = pickQuizFor('VIE', () => 0); // VIE chưa có trong pool
+  check('đội lạ → fallback pool chung', fallback, SAMPLE_QUIZ[0]);
+}
+
+// ---------- 34. resolveNpcAnswer: đúng/sai theo rng ----------
+{
+  const q = SAMPLE_QUIZ[0];
+  const right = resolveNpcAnswer(q, () => 0); // 0 < chance → đúng
+  check('NPC đúng', right.correct, true);
+  check('đáp án = correct', right.answer, q.correct);
+
+  const wrong = resolveNpcAnswer(q, () => 0.99); // 0.99 > chance → sai
+  check('NPC sai', wrong.correct, false);
+  check('đáp án nằm trong wrong[]', q.wrong.includes(wrong.answer), true);
+}
+
+// ---------- 35. shuffledAnswers đủ 4 đáp án ----------
+{
+  const q = SAMPLE_QUIZ[0];
+  const answers = shuffledAnswers(q, () => 0.5);
+  check('đủ 4 đáp án', answers.length, 4);
+  check('chứa đáp án đúng', answers.includes(q.correct), true);
+  check('chứa đủ nhiễu', q.wrong.every((w) => answers.includes(w)), true);
+}
+
 // ---------- Tổng kết ----------
 console.log(`\ncore tests: ${pass} passed, ${fails.length} failed`);
 if (fails.length > 0) {
