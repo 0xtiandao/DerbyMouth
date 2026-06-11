@@ -14,12 +14,20 @@ import type {
 } from '../types';
 import { BALANCE, CONTENT_COLORS, STYLE_LABELS } from '../core/constants';
 import { VIEW } from '../core/view';
-import { applySilence, createCombatant, isSilenced, resolveCardPlay } from '../core/CombatEngine';
+import {
+  applyDamage,
+  applySilence,
+  createCombatant,
+  isSilenced,
+  resolveCardPlay,
+} from '../core/CombatEngine';
 import { InspirationSystem } from '../core/InspirationSystem';
 import { NpcBrain } from '../core/NpcBrain';
 import { StyleSystem } from '../core/StyleSystem';
+import { TrashTalkQTE } from '../core/TrashTalkQTE';
+import type { QteKey } from '../core/TrashTalkQTE';
 import { cardsByStyle } from '../data/cards';
-import { FALLBACK_ROASTS } from '../data/fallbackRoasts';
+import { FALLBACK_ROASTS, FALLBACK_TRASHTALK } from '../data/fallbackRoasts';
 import { TEAMS } from '../data/teams';
 import { SCENES } from './keys';
 import { addText, setupView } from './ui';
@@ -32,6 +40,7 @@ import {
   StyleIndicator,
   StyleSwitchButton,
 } from './battle/widgets';
+import { QtePromptView, TrashTalkMenu } from './battle/qte';
 
 const ALL_STYLES = Object.keys(STYLE_LABELS) as Style[];
 const NPC_POS = { x: VIEW.W / 2, y: 250 } as const;
@@ -66,6 +75,10 @@ export class BattleScene extends Phaser.Scene {
   private npcBubble!: SpeechBubble;
   private npcBrain!: NpcBrain;
   private banterLog!: BanterLog;
+  private qte!: TrashTalkQTE;
+  private qtePrompt!: QtePromptView;
+  private ttMenu!: TrashTalkMenu;
+  private npcAvatar!: Phaser.GameObjects.Arc;
 
   constructor() {
     super(SCENES.BATTLE);
@@ -115,7 +128,9 @@ export class BattleScene extends Phaser.Scene {
     }).setOrigin(0, 0.5);
     this.mfBarOpp = new MfBar(this, 40, 118, 460, 20, 0xef4444);
 
-    this.add.circle(NPC_POS.x, NPC_POS.y, 48, this.opponent.team.color).setStrokeStyle(3, 0xffffff, 0.4);
+    this.npcAvatar = this.add
+      .circle(NPC_POS.x, NPC_POS.y, 48, this.opponent.team.color)
+      .setStrokeStyle(3, 0xffffff, 0.4);
     addText(this, NPC_POS.x, NPC_POS.y + 62, this.opponent.team.name, {
       fontSize: '16px',
       color: '#aaaaaa',
@@ -149,6 +164,13 @@ export class BattleScene extends Phaser.Scene {
     // ----- NPC brain v1 (task 1.7) -----
     this.npcBrain = new NpcBrain(this.opponent, now);
 
+    // ----- Trash Talk QTE (task 2.1) -----
+    this.qte = new TrashTalkQTE(this.opponent, now);
+    this.qtePrompt = new QtePromptView(this, (key) => this.onQtePress(key));
+    this.ttMenu = new TrashTalkMenu(this);
+    this.input.keyboard?.on('keydown-Q', () => this.onQtePress('Q'));
+    this.input.keyboard?.on('keydown-E', () => this.onQtePress('E'));
+
     // float thông báo khi 1 bên đổi style (nghe event từ StyleSystem)
     this.styles.onSwitch((e) => {
       const pos = e.side === 'player'
@@ -181,6 +203,26 @@ export class BattleScene extends Phaser.Scene {
       if (action.kind === 'switch') this.styles.switchTo('opponent', action.style, now);
       else this.npcPlay(action.card, now);
     }
+
+    // Trash Talk QTE: state machine ở core, scene chỉ render
+    const qteEvent = this.qte.tick(now);
+    if (qteEvent) {
+      switch (qteEvent.kind) {
+        case 'promptShown':
+          this.qtePrompt.show(qteEvent.key);
+          this.flashNpcBubble();
+          break;
+        case 'promptMissed':
+          this.qtePrompt.hide();
+          this.floatText(VIEW.W / 2, 420, 'MISSED', '#9ca3af', 0, '22px');
+          break;
+        case 'menuTimeout':
+          this.ttMenu.hide();
+          break;
+      }
+    }
+    if (this.qte.currentPhase === 'prompt') this.qtePrompt.refreshRing(this.qte.promptProgress(now));
+    if (this.qte.currentPhase === 'menu') this.ttMenu.refreshBar(this.qte.menuProgress(now));
 
     this.mfBarPlayer.refresh(this.player.mf, this.player.mfMax);
     this.mfBarOpp.refresh(this.opponent.mf, this.opponent.mfMax);
@@ -322,6 +364,90 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
+  // ================= task 2.1: Trash Talk QTE =================
+
+  private onQtePress(key: QteKey) {
+    if (this.ending) return;
+    const now = this.time.now;
+    const result = this.qte.pressKey(key, now);
+    if (result === 'ignored') return;
+    this.qtePrompt.hide();
+    if (result === 'wrongKey') {
+      this.floatText(VIEW.W / 2, 420, 'WRONG KEY', '#ef4444', 0, '22px');
+      return;
+    }
+    this.openTrashTalkMenu();
+  }
+
+  private openTrashTalkMenu() {
+    // bộ 3 option từ fallback (Phase 2.4: thay bằng buffer AI). Kind: heavy/recover/silence.
+    const set = Phaser.Utils.Array.GetRandom(FALLBACK_TRASHTALK);
+    const medium = Math.round((BALANCE.TT_STANDARD_HIT * BALANCE.TT_MEDIUM_DMG_PCT) / 100);
+    const heavy = Math.round((BALANCE.TT_STANDARD_HIT * BALANCE.TT_HEAVY_DMG_PCT) / 100);
+    const tagOf = (kind: string) =>
+      kind === 'heavy' ? `DMG ${heavy}`
+      : kind === 'recover' ? `DMG ${medium} · +${BALANCE.TT_RECOVER_INSPIRATION} INSP`
+      : `DMG ${medium} · SILENCE`;
+
+    this.ttMenu.show(
+      set.map((o) => ({ text: this.fillTeams(o.text), tag: tagOf(o.kind) })),
+      (i) => this.onTrashTalkPick(set[i]),
+    );
+  }
+
+  private onTrashTalkPick(option: { text: string; kind: string }) {
+    const now = this.time.now;
+    if (!this.qte.choose(now)) return; // menu đã timeout
+    this.ttMenu.hide();
+    const { kind } = option;
+
+    // câu trash talk là lời player nói → bubble + banter log (accent vàng)
+    const line = this.fillTeams(option.text);
+    this.playerBubble.show(line, 0xfddb00);
+    this.banterLog.push({
+      side: 'player',
+      name: 'You',
+      time: this.clockLabel(now),
+      line,
+      accent: 0xfddb00,
+      avatarColor: this.player.team.color,
+    });
+    this.burstParticles(330, 395, 0xfddb00);
+
+    const pct = kind === 'heavy' ? BALANCE.TT_HEAVY_DMG_PCT : BALANCE.TT_MEDIUM_DMG_PCT;
+    const dmg = Math.round((BALANCE.TT_STANDARD_HIT * pct) / 100);
+
+    // trash talk là free damage: không tốn Inspiration, không đụng combo
+    const { mfLoss } = applyDamage(this.opponent, dmg);
+    this.floatText(HIT_POS.opponent.x + Phaser.Math.Between(-50, 50), HIT_POS.opponent.y, `-${mfLoss}`, '#fddb00', 0, '36px');
+
+    if (kind === 'recover') {
+      const gained = this.inspiration.player.recover(BALANCE.TT_RECOVER_INSPIRATION);
+      const p = this.fxPos('player');
+      if (gained > 0) this.floatText(p.x, p.y, `+${gained} INSP`, '#6ee7ff', 120, '20px');
+    } else if (kind === 'silence') {
+      applySilence(this.opponent, BALANCE.TT_SILENCE_MS, now);
+      this.floatText(NPC_POS.x, NPC_POS.y - 80, 'SILENCED', '#9ca3af', 120, '22px');
+    } else {
+      this.cameras.main.shake(130, 0.005); // heavy
+    }
+
+    // NPC "bối rối"
+    this.tweens.add({ targets: this.npcAvatar, x: NPC_POS.x + 8, duration: 50, yoyo: true, repeat: 5 });
+  }
+
+  /** NPC bubble flash khi prompt xuất hiện (nếu bubble đang hiện). */
+  private flashNpcBubble() {
+    if (!this.npcBubble.visible) return;
+    this.tweens.add({ targets: this.npcBubble, alpha: 0.25, duration: 110, yoyo: true, repeat: 4 });
+  }
+
+  private fillTeams(text: string): string {
+    return text
+      .replaceAll('{OPP}', this.opponent.team.name)
+      .replaceAll('{MY}', this.player.team.name);
+  }
+
   /** Vị trí float text effect phụ của mỗi bên (inspiration recover/drain...). */
   private fxPos(side: Side): { x: number; y: number } {
     return side === 'player'
@@ -350,6 +476,19 @@ export class BattleScene extends Phaser.Scene {
           applySilence(victimState, fx.durationMs ?? 0, now);
           const p = HIT_POS[victim];
           this.floatText(p.x, p.y + 110, 'SILENCED', '#9ca3af', 120, '22px');
+          break;
+        }
+        // Scholar (task 2.1) — chỉ phía player (NPC không có hệ QTE nhắm vào player)
+        case 'promptChanceUp': {
+          if (attacker !== 'player') break;
+          this.qte.applyPromptChanceUp(fx.value ?? 0, fx.durationMs ?? 0, now);
+          this.floatText(NPC_POS.x, NPC_POS.y - 80, `PROMPT +${fx.value}%`, '#fddb00', 120, '20px');
+          break;
+        }
+        case 'npcMoodAnger': {
+          if (attacker !== 'player') break;
+          this.qte.applyAnger(now);
+          this.floatText(NPC_POS.x, NPC_POS.y - 80, 'NPC TILTED', '#ff6b4a', 120, '20px');
           break;
         }
         default:

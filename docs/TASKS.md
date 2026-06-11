@@ -120,13 +120,25 @@
 
 ## PHASE 2 — Trash Talk QTE + AI thật
 
-### 2.1. TrashTalkQTE (core + UI)
-- [ ] Trigger random khi NPC nói (base 12%/5s, đọc constants)
-- [ ] Bubble NPC flash + icon + phím Q hoặc E (trái/phải) — mobile: 2 nút tap to
-- [ ] Timer ngầm 1.2s, nhấn kịp → mở menu, miss → mất cơ hội
-- [ ] Menu 3 option (text từ fallback trước): mạnh 150% / 40%+recover / 40%+silence
-- [ ] Silence effect lên NPC (ngừng nói + không phản đòn 1.5-2s)
-- [ ] Scholar card effect: tăng % trigger (đọc từ cards.ts P1/P3)
+### 2.1. TrashTalkQTE (core + UI) ✅
+- [x] Trigger random khi NPC nói (base 12%/5s, đọc constants)
+- [x] Bubble NPC flash + icon + phím Q hoặc E (trái/phải) — mobile: 2 nút tap to
+- [x] Timer ngầm 1.2s, nhấn kịp → mở menu, miss → mất cơ hội
+- [x] Menu 3 option (text từ fallback trước): mạnh 150% / 40%+recover / 40%+silence
+- [x] Silence effect lên NPC (ngừng nói + không phản đòn 1.5-2s)
+- [x] Scholar card effect: tăng % trigger (đọc từ cards.ts P1/P3)
+- Ghi chú (2026-06-12) — quyết định thiết kế:
+  - `core/TrashTalkQTE.ts`: state machine idle→prompt→menu, RNG inject, 25 test mới (tổng 125).
+  - "NPC đang nói" = có đánh card trong 5s gần nhất + không bị câm.
+  - NHẤN SAI PHÍM = mất cơ hội (commit theo read) — hiện "WRONG KEY".
+  - Menu tự đóng sau TT_MENU_TIMEOUT_MS 5s (thanh countdown); game vẫn real-time phía sau.
+  - Trash talk = free damage: không tốn Inspiration, KHÔNG đụng combo chain.
+  - Option recover hồi TT_RECOVER_INSPIRATION 3; P3 anger = +PROMPT_ANGER_BONUS 10% trong 12s
+    (2 hằng mới). Câu đã chọn hiện lên bubble player + banter log với accent VÀNG.
+  - UI `scenes/battle/qte.ts`: 2 nút Q/E to 2 bên (tap = mobile), nút cần nhấn pulse + vòng đếm,
+    nút kia mờ; NPC bubble flash khi prompt.
+  - Test tay (chance 1.0 + window 4s tạm, revert rồi): prompt ✓ miss ✓ wrong key ✓ menu 3 option
+    đúng tag ✓ pick recover → -40 MF + log vàng + không tốn Inspiration ✓.
 
 ### 2.2. Quiz mechanic (PVE)
 - [ ] Option quiz trong menu: câu hỏi 4 đáp án về đội NPC (data tĩnh trước, AI sau)

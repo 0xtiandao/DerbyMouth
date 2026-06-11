@@ -425,6 +425,125 @@ const rngZero = () => 0; // between → min; chọn phần tử [0]
   check('action là switch', actions[0].kind, 'switch');
 }
 
+// ============================================================
+// Task 2.1 — TrashTalkQTE
+// ============================================================
+import { TrashTalkQTE } from './TrashTalkQTE';
+
+// ---------- 26. Trigger khi NPC đang nói + rng đạt ----------
+{
+  const npc = createCombatant('bluster', TEAM, NOW);
+  const qte = new TrashTalkQTE(npc, NOW, () => 0); // rng 0 → luôn trigger, key Q
+  const checkAt = NOW + BALANCE.PROMPT_CHECK_INTERVAL_MS;
+
+  check('trước mốc check không có gì', qte.tick(checkAt - 1), null);
+
+  npc.lastPlayedAt = checkAt - 1000; // NPC vừa nói
+  const ev = qte.tick(checkAt);
+  check('trigger prompt', ev?.kind, 'promptShown');
+  check('phase = prompt', qte.currentPhase, 'prompt');
+  if (ev?.kind === 'promptShown') check('key Q (rng 0)', ev.key, 'Q');
+}
+
+// ---------- 27. KHÔNG trigger khi NPC im / bị câm / rng cao ----------
+{
+  const npc = createCombatant('bluster', TEAM, NOW);
+  const checkAt = NOW + BALANCE.PROMPT_CHECK_INTERVAL_MS;
+
+  // NPC chưa nói gì (lastPlayedAt = -Infinity)
+  const q1 = new TrashTalkQTE(npc, NOW, () => 0);
+  check('NPC im → không trigger', q1.tick(checkAt), null);
+
+  // NPC nói nhưng đang bị câm
+  npc.lastPlayedAt = checkAt - 500;
+  applySilence(npc, 3000, checkAt - 100);
+  const q2 = new TrashTalkQTE(npc, NOW, () => 0);
+  check('NPC bị câm → không trigger', q2.tick(checkAt), null);
+
+  // hết câm nhưng rng quá cao
+  const npc2 = createCombatant('bluster', TEAM, NOW);
+  npc2.lastPlayedAt = checkAt - 500;
+  const q3 = new TrashTalkQTE(npc2, NOW, () => 0.99);
+  check('rng 0.99 > 12% → không trigger', q3.tick(checkAt), null);
+}
+
+// ---------- 28. chance(): Scholar P1 + anger P3 ----------
+{
+  const npc = createCombatant('bluster', TEAM, NOW);
+  const qte = new TrashTalkQTE(npc, NOW, () => 0);
+  check('chance base', qte.chance(NOW), BALANCE.PROMPT_BASE_CHANCE);
+
+  qte.applyPromptChanceUp(15, 10000, NOW); // P1 Touch Grass
+  check('P1 +15%', qte.chance(NOW + 1000), BALANCE.PROMPT_BASE_CHANCE + 0.15);
+  check('P1 hết hạn', qte.chance(NOW + 10001), BALANCE.PROMPT_BASE_CHANCE);
+
+  qte.applyAnger(NOW); // P3
+  check(
+    'anger bonus',
+    qte.chance(NOW + 1000),
+    BALANCE.PROMPT_BASE_CHANCE + 0.15 + BALANCE.PROMPT_ANGER_BONUS,
+  );
+}
+
+// ---------- 29. Prompt window: miss khi hết giờ ----------
+{
+  const npc = createCombatant('bluster', TEAM, NOW);
+  npc.lastPlayedAt = NOW + BALANCE.PROMPT_CHECK_INTERVAL_MS - 100;
+  const qte = new TrashTalkQTE(npc, NOW, () => 0);
+  const shownAt = NOW + BALANCE.PROMPT_CHECK_INTERVAL_MS;
+  qte.tick(shownAt);
+
+  check('trong window chưa miss', qte.tick(shownAt + BALANCE.QTE_WINDOW_MS - 1), null);
+  const missed = qte.tick(shownAt + BALANCE.QTE_WINDOW_MS);
+  check('hết window → missed', missed?.kind, 'promptMissed');
+  check('về idle', qte.currentPhase, 'idle');
+}
+
+// ---------- 30. pressKey: đúng → menu, sai → mất, idle → ignored ----------
+{
+  const npc = createCombatant('bluster', TEAM, NOW);
+  npc.lastPlayedAt = NOW + BALANCE.PROMPT_CHECK_INTERVAL_MS - 100;
+  const qte = new TrashTalkQTE(npc, NOW, () => 0); // key Q
+  const shownAt = NOW + BALANCE.PROMPT_CHECK_INTERVAL_MS;
+
+  check('idle pressKey → ignored', qte.pressKey('Q', NOW), 'ignored');
+
+  qte.tick(shownAt);
+  check('sai phím → wrongKey', qte.pressKey('E', shownAt + 200), 'wrongKey');
+  check('sai phím → về idle', qte.currentPhase, 'idle');
+}
+{
+  const npc = createCombatant('bluster', TEAM, NOW);
+  npc.lastPlayedAt = NOW + BALANCE.PROMPT_CHECK_INTERVAL_MS - 100;
+  const qte = new TrashTalkQTE(npc, NOW, () => 0);
+  const shownAt = NOW + BALANCE.PROMPT_CHECK_INTERVAL_MS;
+  qte.tick(shownAt);
+
+  check('đúng phím → opened', qte.pressKey('Q', shownAt + 200), 'opened');
+  check('phase = menu', qte.currentPhase, 'menu');
+
+  // menu: chọn hợp lệ
+  check('choose trong menu → true', qte.choose(shownAt + 1000), true);
+  check('choose xong về idle', qte.currentPhase, 'idle');
+  check('choose khi idle → false', qte.choose(shownAt + 1100), false);
+}
+
+// ---------- 31. Menu timeout ----------
+{
+  const npc = createCombatant('bluster', TEAM, NOW);
+  npc.lastPlayedAt = NOW + BALANCE.PROMPT_CHECK_INTERVAL_MS - 100;
+  const qte = new TrashTalkQTE(npc, NOW, () => 0);
+  const shownAt = NOW + BALANCE.PROMPT_CHECK_INTERVAL_MS;
+  qte.tick(shownAt);
+  qte.pressKey('Q', shownAt + 100);
+
+  const expireAt = shownAt + 100 + BALANCE.TT_MENU_TIMEOUT_MS;
+  check('menu chưa hết giờ', qte.tick(expireAt - 1), null);
+  const ev = qte.tick(expireAt);
+  check('menu hết giờ → menuTimeout', ev?.kind, 'menuTimeout');
+  check('menu timeout về idle', qte.currentPhase, 'idle');
+}
+
 // ---------- Tổng kết ----------
 console.log(`\ncore tests: ${pass} passed, ${fails.length} failed`);
 if (fails.length > 0) {

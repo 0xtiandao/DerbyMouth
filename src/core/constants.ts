@@ -24,11 +24,15 @@ export const BALANCE = {
   // Trash Talk QTE
   PROMPT_BASE_CHANCE: 0.12,     // mỗi 5s NPC nói
   PROMPT_CHECK_INTERVAL_MS: 5000,
+  PROMPT_ANGER_BONUS: 0.1,      // P3 Crying Jordan: NPC tilted → dễ trigger hơn
+  ANGER_DURATION_MS: 12000,
   QTE_WINDOW_MS: 1200,          // thời gian nhấn Q/E
   TT_HEAVY_DMG_PCT: 150,        // % của 1 đòn chuẩn (xem ghi chú dưới)
   TT_MEDIUM_DMG_PCT: 40,
   TT_STANDARD_HIT: 100,         // "đòn chuẩn" = 100 dmg để tính % trash talk
   TT_SILENCE_MS: 1800,
+  TT_RECOVER_INSPIRATION: 3,    // option recover hồi bao nhiêu Inspiration
+  TT_MENU_TIMEOUT_MS: 5000,     // menu 3 option tự đóng nếu không chọn
   QUIZ_WRONG_BONUS_DMG: 80,
   QUIZ_ANSWER_TIME_MS: 6000,    // PVP: thời gian đối thủ trả lời quiz
 
