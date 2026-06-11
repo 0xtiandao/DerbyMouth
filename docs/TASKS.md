@@ -103,11 +103,20 @@
   (viền màu content type, nền tối chữ sáng); player căn phải, NPC căn trái; entry mới
   vào đáy, cũ đẩy lên + mờ nhẹ, tràn khung thì bỏ. NPC bubble dời lên trên avatar.
 
-### 1.8. Win/lose + sudden death
-- [ ] MF về 0 → ResultScene
-- [ ] Timer trận hết → drain MF cả 2 mỗi giây
+### 1.8. Win/lose + sudden death ✅
+- [x] MF về 0 → ResultScene
+- [x] Timer trận hết → drain MF cả 2 mỗi giây
+- Ghi chú (2026-06-11):
+  - MF về 0 → đóng băng trận 1.2s + "KNOCKOUT!" giữa màn + screen shake → ResultScene.
+  - Sudden death: timer thành "SUDDEN DEATH" đỏ nhấp nháy, drain 25/s cả 2 bên
+    (SUDDEN_DEATH_DRAIN_PER_SEC, XUYÊN shield — chỉ đòn đánh mới bị shield chặn),
+    bù tick nếu frame trễ, float -25 cạnh 2 thanh MF.
+  - Cả 2 cùng về 0 một tick (chỉ xảy ra khi drain) → ƯU ÁI PLAYER thắng.
+  - Đã xóa 2 nút WIN/LOSE test.
+  - Test tay (hạ tạm MF 200 + timer 15s rồi revert): KO thắng ✓, NPC giết player → LOSE ✓,
+    sudden death drain đồng bộ 2 bar → tie → WIN ✓.
 
-**CHECKPOINT PHASE 1: chơi được 1 trận PVE đầy đủ với roast hardcode.**
+**CHECKPOINT PHASE 1 ĐẠT (2026-06-11): chơi được 1 trận PVE đầy đủ với roast hardcode.** ✅
 
 ## PHASE 2 — Trash Talk QTE + AI thật
 

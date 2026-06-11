@@ -22,7 +22,7 @@ import { cardsByStyle } from '../data/cards';
 import { FALLBACK_ROASTS } from '../data/fallbackRoasts';
 import { TEAMS } from '../data/teams';
 import { SCENES } from './keys';
-import { addText, makeTextButton, setupView } from './ui';
+import { addText, setupView } from './ui';
 import {
   BanterLog,
   CardView,
@@ -51,6 +51,8 @@ export class BattleScene extends Phaser.Scene {
   private matchEndAt = 0;
   private hand: CardDef[] = [];
   private lastRoast = '';
+  private ending = false; // đã có bên thắng — đợi chuyển ResultScene
+  private nextSuddenDrainAt = 0;
 
   private mfBarPlayer!: MfBar;
   private mfBarOpp!: MfBar;
@@ -95,6 +97,8 @@ export class BattleScene extends Phaser.Scene {
     };
     this.styles = new StyleSystem({ player: this.player, opponent: this.opponent });
     this.matchEndAt = now + BALANCE.MATCH_TIMER_MS;
+    this.nextSuddenDrainAt = this.matchEndAt; // drain đầu tiên đúng lúc 0:00
+    this.ending = false;
     this.lastRoast = '';
 
     // Hand đầu trận: 4 lá từ pool style đã chọn
@@ -164,16 +168,10 @@ export class BattleScene extends Phaser.Scene {
     // ----- Inspiration bubble (dưới phải) -----
     this.bubble = new InspirationBubble(this, VIEW.W - 120, VIEW.H - 110);
 
-    // ----- nút test win/lose (xóa ở task 1.8) -----
-    makeTextButton(this, VIEW.W / 2 - 70, 28, 'WIN (test)', () => this.end(true), {
-      width: 120, height: 32, fontSize: '13px',
-    });
-    makeTextButton(this, VIEW.W / 2 + 70, 28, 'LOSE (test)', () => this.end(false), {
-      width: 120, height: 32, fontSize: '13px',
-    });
   }
 
   update(time: number) {
+    if (this.ending) return; // đóng băng trận trong khoảnh khắc KNOCKOUT
     const now = time;
     this.inspiration.player.tick(now);
     this.inspiration.opponent.tick(now);
@@ -197,17 +195,50 @@ export class BattleScene extends Phaser.Scene {
       this.player.style,
     );
 
-    this.timerText.setText(this.clockLabel(now));
+    // Hết giờ → SUDDEN DEATH: drain MF cả 2 mỗi giây (xuyên shield), bù tick nếu frame trễ
+    if (now >= this.matchEndAt) {
+      this.timerText.setText('SUDDEN DEATH').setColor('#ef4444');
+      this.timerText.setAlpha(0.6 + 0.4 * Math.abs(Math.sin(now / 200)));
+      while (now >= this.nextSuddenDrainAt) {
+        this.suddenDeathDrain();
+        this.nextSuddenDrainAt += 1000;
+      }
+    } else {
+      this.timerText.setText(this.clockLabel(now));
+    }
 
     this.handViews.forEach((view, i) => {
       const card = this.hand[i];
       if (card) view.setAffordable(this.inspiration.player.canAfford(card.cost));
     });
+
+    this.checkMatchEnd();
+  }
+
+  /** MF về 0 → KNOCKOUT + chuyển ResultScene. Cả 2 cùng 0 (drain sudden death) → player thắng. */
+  private checkMatchEnd() {
+    const playerDead = this.player.mf <= 0;
+    const oppDead = this.opponent.mf <= 0;
+    if (!playerDead && !oppDead) return;
+
+    this.ending = true;
+    const won = oppDead;
+    this.floatText(VIEW.W / 2, 380, 'KNOCKOUT!', '#fddb00', 0, '52px');
+    this.cameras.main.shake(250, 0.008);
+    this.time.delayedCall(1200, () => this.end(won));
+  }
+
+  private suddenDeathDrain() {
+    this.player.mf = Math.max(0, this.player.mf - BALANCE.SUDDEN_DEATH_DRAIN_PER_SEC);
+    this.opponent.mf = Math.max(0, this.opponent.mf - BALANCE.SUDDEN_DEATH_DRAIN_PER_SEC);
+    this.floatText(515, 100, `-${BALANCE.SUDDEN_DEATH_DRAIN_PER_SEC}`, '#ef4444', 0, '16px');
+    this.floatText(515, 482, `-${BALANCE.SUDDEN_DEATH_DRAIN_PER_SEC}`, '#ef4444', 0, '16px');
   }
 
   // ================= task 1.6: chơi card =================
 
   private playCard(slot: number) {
+    if (this.ending) return;
     const card = this.hand[slot];
     if (!card) return;
     const now = this.time.now;
