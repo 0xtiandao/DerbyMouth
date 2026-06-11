@@ -257,10 +257,19 @@ export class SpeechBubble extends Phaser.GameObjects.Container {
   }
 }
 
-/** Lịch sử hội thoại chửi nhau (banter log): entry mới vào đáy, cũ đẩy lên trên,
- *  tràn khung thì bỏ. Màu chữ theo content type của câu roast. */
+export interface BanterEntry {
+  side: 'player' | 'opponent'; // player = căn phải, opponent = căn trái (kiểu chat)
+  name: string;
+  time: string; // mốc đồng hồ trận lúc nói
+  line: string;
+  accent: number; // màu content type — viền bubble
+  avatarColor: number; // màu đội (placeholder avatar tới Phase 5)
+}
+
+/** Lịch sử hội thoại chửi nhau kiểu chat (như WWM): avatar + tên + giờ + bong bóng
+ *  tin nhắn bo góc. Entry mới vào đáy, cũ đẩy lên + mờ nhẹ, tràn khung thì bỏ. */
 export class BanterLog extends Phaser.GameObjects.Container {
-  private entries: Phaser.GameObjects.Text[] = [];
+  private entries: { node: Phaser.GameObjects.Container; h: number }[] = [];
   private readonly pad = 10;
   private readonly topLimit = 32; // chừa chỗ title
 
@@ -285,32 +294,60 @@ export class BanterLog extends Phaser.GameObjects.Container {
     scene.add.existing(this);
   }
 
-  push(speaker: string, line: string, accent: number) {
-    const color = '#' + accent.toString(16).padStart(6, '0');
-    const t = addText(this.scene, this.pad, 0, `${speaker}: ${line}`, {
+  push(data: BanterEntry) {
+    const scene = this.scene;
+    const innerW = this.boxW - this.pad * 2;
+    const isRight = data.side === 'player';
+    const entry = scene.add.container(this.pad, 0);
+
+    // avatar tròn màu đội (Phase 5 thay bằng ảnh nhân vật)
+    const avatar = scene.add
+      .circle(isRight ? innerW - 14 : 14, 12, 12, data.avatarColor)
+      .setStrokeStyle(1.5, 0xffffff, 0.5);
+
+    const nameText = addText(scene, isRight ? innerW - 32 : 32, 5, `${data.name} · ${data.time}`, {
+      fontSize: '11px',
+      color: '#9a8c7a',
+    }).setOrigin(isRight ? 1 : 0, 0);
+
+    // bong bóng tin nhắn bo góc, viền màu content type
+    const bubbleMaxW = innerW - 44;
+    const msg = addText(scene, 0, 0, data.line, {
       fontSize: '13px',
-      color,
-      wordWrap: { width: this.boxW - this.pad * 2 },
+      color: '#e8e2d8',
+      wordWrap: { width: bubbleMaxW - 20 },
       lineSpacing: 2,
     });
-    this.add(t);
-    this.entries.push(t);
+    const bw = Math.min(bubbleMaxW, msg.width + 20);
+    const bh = msg.height + 14;
+    const bx = isRight ? innerW - 32 - bw : 32;
+    const by = 26;
+    const g = scene.add.graphics();
+    g.fillStyle(0x26201a, 0.95);
+    g.lineStyle(1.5, data.accent, 0.9);
+    g.fillRoundedRect(bx, by, bw, bh, 8);
+    g.strokeRoundedRect(bx, by, bw, bh, 8);
+    msg.setPosition(bx + 10, by + 7);
+
+    entry.add([g, avatar, nameText, msg]);
+    this.add(entry);
+    this.entries.push({ node: entry, h: by + bh });
     this.relayout();
   }
 
   private relayout() {
     let yCursor = this.boxH - this.pad;
     for (let i = this.entries.length - 1; i >= 0; i--) {
-      const t = this.entries[i];
-      yCursor -= t.height;
+      const e = this.entries[i];
+      yCursor -= e.h;
       if (yCursor < this.topLimit) {
         // hết chỗ → bỏ entry này và mọi entry cũ hơn
-        this.entries.splice(0, i + 1).forEach((old) => old.destroy());
+        this.entries.splice(0, i + 1).forEach((old) => old.node.destroy());
         break;
       }
-      t.setY(yCursor);
-      t.setAlpha(i === this.entries.length - 1 ? 1 : 0.65);
-      yCursor -= 8;
+      e.node.setY(yCursor);
+      e.node.setAlpha(i === this.entries.length - 1 ? 1 : 0.8);
+      yCursor -= 10;
     }
   }
 }

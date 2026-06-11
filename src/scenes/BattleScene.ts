@@ -139,8 +139,8 @@ export class BattleScene extends Phaser.Scene {
     this.playerBubble = new SpeechBubble(this, 330, 350, 'left');
     this.npcBubble = new SpeechBubble(this, 660, 150, 'left');
 
-    // ----- Banter log: lịch sử hội thoại, bên phải dưới timer -----
-    this.banterLog = new BanterLog(this, 920, 72, 330, 385);
+    // ----- Banter log: lịch sử hội thoại kiểu chat, bên phải dưới timer -----
+    this.banterLog = new BanterLog(this, 920, 72, 330, 470);
 
     // ----- NPC brain v1 (task 1.7) -----
     this.npcBrain = new NpcBrain(this.opponent, now);
@@ -197,8 +197,7 @@ export class BattleScene extends Phaser.Scene {
       this.player.style,
     );
 
-    const remainSec = Math.ceil(Math.max(0, this.matchEndAt - now) / 1000);
-    this.timerText.setText(`${Math.floor(remainSec / 60)}:${String(remainSec % 60).padStart(2, '0')}`);
+    this.timerText.setText(this.clockLabel(now));
 
     this.handViews.forEach((view, i) => {
       const card = this.hand[i];
@@ -227,7 +226,14 @@ export class BattleScene extends Phaser.Scene {
     // 2) câu roast theo content type (Phase 2 thay bằng AI buffer, fallback giữ nguyên)
     const line = this.pickRoast(card.content, 'player');
     this.playerBubble.show(line, CONTENT_COLORS[card.content]);
-    this.banterLog.push('YOU', line, CONTENT_COLORS[card.content]);
+    this.banterLog.push({
+      side: 'player',
+      name: 'You',
+      time: this.clockLabel(now),
+      line,
+      accent: CONTENT_COLORS[card.content],
+      avatarColor: this.player.team.color,
+    });
     this.burstParticles(330, 395, CONTENT_COLORS[card.content]);
 
     // 3) damage qua core: style buff + counter + combo + mark, trừ MF NPC
@@ -252,7 +258,14 @@ export class BattleScene extends Phaser.Scene {
     if (!this.inspiration.opponent.spend(card.cost)) return; // brain đọc state cũ — bỏ lượt
     const line = this.pickRoast(card.content, 'opponent');
     this.npcBubble.show(line, CONTENT_COLORS[card.content]);
-    this.banterLog.push(this.opponent.team.id, line, CONTENT_COLORS[card.content]);
+    this.banterLog.push({
+      side: 'opponent',
+      name: `${this.opponent.team.name} fan`,
+      time: this.clockLabel(now),
+      line,
+      accent: CONTENT_COLORS[card.content],
+      avatarColor: this.opponent.team.color,
+    });
     this.burstParticles(660, 190, CONTENT_COLORS[card.content]);
 
     const result = resolveCardPlay(card, this.opponent, this.player, now);
@@ -333,6 +346,12 @@ export class BattleScene extends Phaser.Scene {
     const myTeam = speaker === 'player' ? this.player.team.name : this.opponent.team.name;
     const oppTeam = speaker === 'player' ? this.opponent.team.name : this.player.team.name;
     return line.replaceAll('{OPP}', oppTeam).replaceAll('{MY}', myTeam);
+  }
+
+  /** Đồng hồ trận (đếm ngược) — dùng cho timer + mốc giờ trong banter log. */
+  private clockLabel(now: number): string {
+    const remainSec = Math.ceil(Math.max(0, this.matchEndAt - now) / 1000);
+    return `${Math.floor(remainSec / 60)}:${String(remainSec % 60).padStart(2, '0')}`;
   }
 
   private floatText(x: number, y: number, str: string, color: string, delay = 0, fontSize = '26px') {
