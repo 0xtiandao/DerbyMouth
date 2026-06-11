@@ -16,6 +16,7 @@ import { BALANCE, CONTENT_COLORS, STYLE_LABELS } from '../core/constants';
 import { VIEW } from '../core/view';
 import { applySilence, createCombatant, isSilenced, resolveCardPlay } from '../core/CombatEngine';
 import { InspirationSystem } from '../core/InspirationSystem';
+import { NpcBrain } from '../core/NpcBrain';
 import { StyleSystem } from '../core/StyleSystem';
 import { cardsByStyle } from '../data/cards';
 import { FALLBACK_ROASTS } from '../data/fallbackRoasts';
@@ -33,6 +34,11 @@ import {
 
 const ALL_STYLES = Object.keys(STYLE_LABELS) as Style[];
 const NPC_POS = { x: VIEW.W / 2, y: 250 } as const;
+/** Vị trí hiện damage float khi bên đó BỊ đánh */
+const HIT_POS: Record<Side, { x: number; y: number }> = {
+  opponent: { x: NPC_POS.x, y: 165 },
+  player: { x: 270, y: 445 },
+};
 
 export class BattleScene extends Phaser.Scene {
   private playerStyle: Style = 'rebuttal';
@@ -54,6 +60,8 @@ export class BattleScene extends Phaser.Scene {
   private handViews: CardView[] = [];
   private timerText!: Phaser.GameObjects.Text;
   private playerBubble!: SpeechBubble;
+  private npcBubble!: SpeechBubble;
+  private npcBrain!: NpcBrain;
 
   constructor() {
     super(SCENES.BATTLE);
@@ -125,8 +133,20 @@ export class BattleScene extends Phaser.Scene {
     }).setOrigin(0, 0.5);
     this.mfBarPlayer = new MfBar(this, 40, 500, 460, 20, 0x22c55e);
 
-    // ----- Speech bubble player (trái) -----
+    // ----- Speech bubble 2 bên (player trái, NPC phải) -----
     this.playerBubble = new SpeechBubble(this, 330, 350, 'left');
+    this.npcBubble = new SpeechBubble(this, 900, 172, 'left');
+
+    // ----- NPC brain v1 (task 1.7) -----
+    this.npcBrain = new NpcBrain(this.opponent, now);
+
+    // float thông báo khi 1 bên đổi style (nghe event từ StyleSystem)
+    this.styles.onSwitch((e) => {
+      const pos = e.side === 'player'
+        ? { x: 170, y: 392 }
+        : { x: NPC_POS.x, y: NPC_POS.y - 95 };
+      this.floatText(pos.x, pos.y, `→ ${STYLE_LABELS[e.to]}`, '#ffffff', 0, '20px');
+    });
 
     // ----- Hand 4 card -----
     this.handViews = this.hand.map((card, i) => {
@@ -152,6 +172,12 @@ export class BattleScene extends Phaser.Scene {
     const now = time;
     this.inspiration.player.tick(now);
     this.inspiration.opponent.tick(now);
+
+    // NPC brain: thực thi quyết định (switch qua StyleSystem — tự enforce cooldown)
+    for (const action of this.npcBrain.tick(now)) {
+      if (action.kind === 'switch') this.styles.switchTo('opponent', action.style, now);
+      else this.npcPlay(action.card, now);
+    }
 
     this.mfBarPlayer.refresh(this.player.mf, this.player.mfMax);
     this.mfBarOpp.refresh(this.opponent.mf, this.opponent.mfMax);
@@ -181,7 +207,11 @@ export class BattleScene extends Phaser.Scene {
     const card = this.hand[slot];
     if (!card) return;
     const now = this.time.now;
-    if (isSilenced(this.player, now)) return; // bị câm (Phase 2 NPC trash talk) — không chơi được
+    if (isSilenced(this.player, now)) {
+      // bị câm (NPC trash talk Phase 2 / R3) — không chơi được
+      this.floatText(HIT_POS.player.x, HIT_POS.player.y, 'SILENCED', '#9ca3af', 0, '20px');
+      return;
+    }
 
     // 1) check + trừ Inspiration. Thiếu → rung lá, không mất gì.
     if (!this.inspiration.player.spend(card.cost)) {
@@ -190,16 +220,16 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // 2) câu roast theo content type (Phase 2 thay bằng AI buffer, fallback giữ nguyên)
-    this.playerBubble.show(this.pickRoast(card.content), CONTENT_COLORS[card.content]);
+    this.playerBubble.show(this.pickRoast(card.content, 'player'), CONTENT_COLORS[card.content]);
     this.burstParticles(330, 395, CONTENT_COLORS[card.content]);
 
     // 3) damage qua core: style buff + counter + combo + mark, trừ MF NPC
     const result = resolveCardPlay(card, this.player, this.opponent, now);
-    this.showHitFeedback(result);
+    this.showHitFeedback(result, 'opponent');
 
     // 4) effect tức thì core đã hỗ trợ (silence/recover/drain).
     //    Còn lại: shield/mark/slowRegen/costUp/buffNext → Phase 3; prompt/quiz → Phase 2.
-    this.applyImmediateEffects(card, now);
+    this.applyImmediateEffects(card, now, 'player');
 
     // 5) rút lá mới từ pool style HIỆN TẠI (sau switch là pool mới — card trên tay giữ nguyên)
     const drawn = this.drawCard(slot);
@@ -210,16 +240,28 @@ export class BattleScene extends Phaser.Scene {
     this.tweens.add({ targets: view, scale: 1, duration: 160, ease: 'Back.easeOut' });
   }
 
-  private showHitFeedback(result: DamageBreakdown & { mfLoss: number }) {
+  /** NPC chơi card (task 1.7): bubble phải + trừ MF player — cùng đường core với player. */
+  private npcPlay(card: CardDef, now: number) {
+    if (!this.inspiration.opponent.spend(card.cost)) return; // brain đọc state cũ — bỏ lượt
+    this.npcBubble.show(this.pickRoast(card.content, 'opponent'), CONTENT_COLORS[card.content]);
+    this.burstParticles(900, 215, CONTENT_COLORS[card.content]);
+
+    const result = resolveCardPlay(card, this.opponent, this.player, now);
+    this.showHitFeedback(result, 'player');
+    this.applyImmediateEffects(card, now, 'opponent');
+  }
+
+  private showHitFeedback(result: DamageBreakdown & { mfLoss: number }, victim: Side) {
+    const pos = HIT_POS[victim];
     // jitter ngang để các con số không đè nhau khi đánh nhanh
-    const jx = NPC_POS.x + Phaser.Math.Between(-50, 50);
-    this.floatText(jx, 165, `-${result.mfLoss}`, '#ffffff', 0, '36px');
+    const jx = pos.x + Phaser.Math.Between(-50, 50);
+    this.floatText(jx, pos.y, `-${result.mfLoss}`, '#ffffff', 0, '36px');
     if (result.countered) {
       const pct = Math.round((BALANCE.CONTENT_COUNTER_MULT - 1) * 100);
-      this.floatText(NPC_POS.x, 205, `COUNTERED! +${pct}%`, '#fddb00', 120, '24px');
+      this.floatText(pos.x, pos.y + 40, `COUNTERED! +${pct}%`, '#fddb00', 120, '24px');
     }
     if (result.comboLevel >= 2) {
-      this.floatText(NPC_POS.x, 240, `COMBO x${result.comboLevel}`, '#ff9f43', 240, '24px');
+      this.floatText(pos.x, pos.y + 75, `COMBO x${result.comboLevel}`, '#ff9f43', 240, '24px');
     }
     // đòn lớn → screen shake nhẹ ("Pub Knockout moment")
     if (result.countered || result.comboLevel === 3) {
@@ -227,22 +269,34 @@ export class BattleScene extends Phaser.Scene {
     }
   }
 
-  private applyImmediateEffects(card: CardDef, now: number) {
+  /** Vị trí float text effect phụ của mỗi bên (inspiration recover/drain...). */
+  private fxPos(side: Side): { x: number; y: number } {
+    return side === 'player'
+      ? { x: VIEW.W - 120, y: VIEW.H - 170 } // cạnh inspiration bubble
+      : { x: NPC_POS.x + 90, y: NPC_POS.y - 20 }; // cạnh avatar NPC
+  }
+
+  private applyImmediateEffects(card: CardDef, now: number, attacker: Side) {
+    const victim: Side = attacker === 'player' ? 'opponent' : 'player';
+    const victimState = victim === 'player' ? this.player : this.opponent;
     for (const fx of card.effects) {
       switch (fx.kind) {
         case 'recoverInspiration': {
-          const gained = this.inspiration.player.recover(fx.value ?? 0);
-          if (gained > 0) this.floatText(VIEW.W - 120, VIEW.H - 170, `+${gained}`, '#6ee7ff', 0, '24px');
+          const gained = this.inspiration[attacker].recover(fx.value ?? 0);
+          const p = this.fxPos(attacker);
+          if (gained > 0) this.floatText(p.x, p.y, `+${gained} INSP`, '#6ee7ff', 0, '20px');
           break;
         }
         case 'drainInspiration': {
-          const lost = this.inspiration.opponent.drain(fx.value ?? 0);
-          if (lost > 0) this.floatText(NPC_POS.x + 90, NPC_POS.y - 20, `-${lost} INSP`, '#b48cff', 0, '18px');
+          const lost = this.inspiration[victim].drain(fx.value ?? 0);
+          const p = this.fxPos(victim);
+          if (lost > 0) this.floatText(p.x, p.y, `-${lost} INSP`, '#b48cff', 0, '20px');
           break;
         }
         case 'silence': {
-          applySilence(this.opponent, fx.durationMs ?? 0, now);
-          this.floatText(NPC_POS.x, NPC_POS.y - 80, 'SILENCED', '#9ca3af', 120, '22px');
+          applySilence(victimState, fx.durationMs ?? 0, now);
+          const p = HIT_POS[victim];
+          this.floatText(p.x, p.y + 110, 'SILENCED', '#9ca3af', 120, '22px');
           break;
         }
         default:
@@ -259,15 +313,17 @@ export class BattleScene extends Phaser.Scene {
     return Phaser.Utils.Array.GetRandom(choices.length > 0 ? choices : pool);
   }
 
-  /** Roast hardcode theo content type, né lặp câu liền trước, thay {OPP}/{MY}. */
-  private pickRoast(content: ContentType): string {
+  /** Roast hardcode theo content type, né lặp câu liền trước, thay {OPP}/{MY} theo người nói. */
+  private pickRoast(content: ContentType, speaker: Side): string {
     const pool = FALLBACK_ROASTS[content];
     let line = Phaser.Utils.Array.GetRandom(pool);
     if (line === this.lastRoast && pool.length > 1) {
       line = pool[(pool.indexOf(line) + 1) % pool.length];
     }
     this.lastRoast = line;
-    return line.replaceAll('{OPP}', this.opponent.team.name).replaceAll('{MY}', this.player.team.name);
+    const myTeam = speaker === 'player' ? this.player.team.name : this.opponent.team.name;
+    const oppTeam = speaker === 'player' ? this.opponent.team.name : this.player.team.name;
+    return line.replaceAll('{OPP}', oppTeam).replaceAll('{MY}', myTeam);
   }
 
   private floatText(x: number, y: number, str: string, color: string, delay = 0, fontSize = '26px') {

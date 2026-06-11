@@ -83,10 +83,21 @@
   - Test tay verify: -80 → combo x2 -75 (60×1.25) → combo x3 -160 (80×2.0), MF 685 khớp;
     Inspiration 0 → hand mờ + chặn. COUNTERED chưa trigger được vì NPC chưa đánh (task 1.7).
 
-### 1.7. NPC brain v1 (đơn giản)
-- [ ] NPC tự chơi card mỗi 3-5s (random từ pool style của nó)
-- [ ] Speech bubble NPC (phải) + trừ MF player
-- [ ] NPC switch style ngẫu nhiên mỗi 20-30s
+### 1.7. NPC brain v1 (đơn giản) ✅
+- [x] NPC tự chơi card mỗi 3-5s (random từ pool style của nó)
+- [x] Speech bubble NPC (phải) + trừ MF player
+- [x] NPC switch style ngẫu nhiên mỗi 20-30s
+- Ghi chú (2026-06-11):
+  - `core/NpcBrain.ts` pure TS, RNG inject được → test deterministic (19 test mới, tổng 100).
+  - Brain trả NpcAction[] (switch/play), scene thực thi: switch qua StyleSystem (tự enforce
+    cooldown 15s — interval 20-30s luôn thỏa), play đi CÙNG đường resolveCardPlay với player.
+  - Chỉ chọn lá affordable; nghèo → retry sau NPC_POOR_RETRY_MS (1s, thêm vào BALANCE).
+  - Bị silence: không nói nhưng VẪN switch được; nextPlayAt không dời → hết câm nói liền.
+  - playCard/pickRoast/feedback/effects tổng quát hoá theo Side — {OPP}/{MY} đảo đúng người nói,
+    HIT_POS riêng từng bên, player bị NPC silence sẽ thấy float "SILENCED" khi tap.
+  - StyleSystem.onSwitch → float "→ StyleName" cả 2 bên.
+  - Test tay: NPC nói mỗi 3-5s pool đúng style, switch Rebuttal→Filibuster lúc ~25s,
+    badge +25% phía player TỰ BẬT đúng RPS, MF player giảm từng đòn khớp số.
 
 ### 1.8. Win/lose + sudden death
 - [ ] MF về 0 → ResultScene

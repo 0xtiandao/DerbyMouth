@@ -344,6 +344,87 @@ import type { StyleSwitchEvent } from './StyleSystem';
   );
 }
 
+// ============================================================
+// Task 1.7 — NpcBrain v1
+// ============================================================
+import { NpcBrain } from './NpcBrain';
+
+const rngZero = () => 0; // between → min; chọn phần tử [0]
+
+// ---------- 21. Lịch chơi card 3-5s ----------
+{
+  const npc = createCombatant('rebuttal', TEAM, NOW);
+  const brain = new NpcBrain(npc, NOW, rngZero);
+
+  check('trước hạn không làm gì', brain.tick(NOW + BALANCE.NPC_PLAY_INTERVAL_MIN_MS - 1).length, 0);
+
+  const actions = brain.tick(NOW + BALANCE.NPC_PLAY_INTERVAL_MIN_MS);
+  check('đúng hạn → 1 action', actions.length, 1);
+  check('action là play', actions[0].kind, 'play');
+  if (actions[0].kind === 'play') {
+    check('card thuộc pool style NPC', actions[0].card.style, 'rebuttal');
+    check('card affordable', actions[0].card.cost <= npc.inspiration, true);
+  }
+  check('đã reschedule — tick lại rỗng', brain.tick(NOW + BALANCE.NPC_PLAY_INTERVAL_MIN_MS).length, 0);
+}
+
+// ---------- 22. Nghèo Inspiration → đợi retry ----------
+{
+  const npc = createCombatant('rebuttal', TEAM, NOW);
+  npc.inspiration = 1; // pool rebuttal rẻ nhất cost 2 → không afford
+  const brain = new NpcBrain(npc, NOW, rngZero);
+
+  const playAt = NOW + BALANCE.NPC_PLAY_INTERVAL_MIN_MS;
+  check('nghèo → không play', brain.tick(playAt).length, 0);
+  check('chưa tới retry → vẫn im', brain.tick(playAt + BALANCE.NPC_POOR_RETRY_MS - 1).length, 0);
+
+  npc.inspiration = 2; // đủ mua lá rẻ nhất
+  const retry = brain.tick(playAt + BALANCE.NPC_POOR_RETRY_MS);
+  check('đủ tiền sau retry → play', retry.length, 1);
+  if (retry[0].kind === 'play') check('chọn được lá cost 2', retry[0].card.cost, 2);
+}
+
+// ---------- 23. Silence → không nói, hết câm nói liền ----------
+{
+  const npc = createCombatant('rebuttal', TEAM, NOW);
+  const brain = new NpcBrain(npc, NOW, rngZero);
+  const playAt = NOW + BALANCE.NPC_PLAY_INTERVAL_MIN_MS;
+
+  applySilence(npc, 2000, playAt - 100);
+  check('đang câm → không play', brain.tick(playAt).length, 0);
+  // hết câm + đã quá hạn → nói ngay (nextPlayAt không bị dời trong lúc câm)
+  const after = brain.tick(playAt - 100 + 2000);
+  check('hết câm nói liền', after.length, 1);
+  check('action play sau câm', after[0].kind, 'play');
+}
+
+// ---------- 24. Switch style ngẫu nhiên 20-30s ----------
+{
+  const npc = createCombatant('rebuttal', TEAM, NOW);
+  const brain = new NpcBrain(npc, NOW, rngZero);
+  const switchAt = NOW + BALANCE.NPC_STYLE_SWITCH_MIN_MS;
+
+  // tick đúng hạn switch: quá hạn play từ lâu → cả switch + play trong 1 tick
+  const actions = brain.tick(switchAt);
+  check('switch + play cùng tick', actions.length, 2);
+  check('switch trước', actions[0].kind, 'switch');
+  if (actions[0].kind === 'switch') {
+    check('style mới khác style cũ', actions[0].style !== npc.style, true);
+  }
+  check('switch đã reschedule', brain.tick(switchAt + 1).length, 0);
+}
+
+// ---------- 25. Silence vẫn cho switch (câm ≠ không đổi thế) ----------
+{
+  const npc = createCombatant('rebuttal', TEAM, NOW);
+  const brain = new NpcBrain(npc, NOW, rngZero);
+  const switchAt = NOW + BALANCE.NPC_STYLE_SWITCH_MIN_MS;
+  applySilence(npc, 5000, switchAt - 100);
+  const actions = brain.tick(switchAt);
+  check('câm: chỉ switch, không play', actions.length, 1);
+  check('action là switch', actions[0].kind, 'switch');
+}
+
 // ---------- Tổng kết ----------
 console.log(`\ncore tests: ${pass} passed, ${fails.length} failed`);
 if (fails.length > 0) {

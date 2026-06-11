@@ -37,6 +37,8 @@ export const BALANCE = {
   NPC_PLAY_INTERVAL_MAX_MS: 5000,
   NPC_STYLE_SWITCH_MIN_MS: 20000,
   NPC_STYLE_SWITCH_MAX_MS: 30000,
+  NPC_POOR_RETRY_MS: 1000,      // nghèo Inspiration → thử chơi lại sau
+
 } as const;
 
 /** Style RPS: key khắc value. Rebuttal > Filibuster > Bluster > Provocation > Rebuttal */
