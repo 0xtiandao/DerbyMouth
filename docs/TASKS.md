@@ -38,9 +38,18 @@
   - Silence tự breakCombo (PLAN 2.6). Inspiration cost CHƯA trừ ở đây — task 1.4.
   - `npm test` = npx tsx (không thêm devDependency). 36 test pass.
 
-### 1.4. Core: InspirationSystem + StyleSystem
-- [ ] Inspiration: max 10, regen +1/2s, trừ theo cost, chặn chơi card khi thiếu
-- [ ] StyleSystem: style hiện tại 2 bên, switch cooldown 15s, event khi switch
+### 1.4. Core: InspirationSystem + StyleSystem ✅
+- [x] Inspiration: max 10, regen +1/2s, trừ theo cost, chặn chơi card khi thiếu
+- [x] StyleSystem: style hiện tại 2 bên, switch cooldown 15s, event khi switch
+- Ghi chú (2026-06-11) — quyết định thiết kế:
+  - InspirationSystem: 1 instance/combatant, `tick(now)` bù được nhiều mốc nếu frame trễ;
+    khi đầy max vòng regen đứng yên (progress 0), tụt xuống mới đếm lại.
+  - Khởi đầu trận: Inspiration ĐẦY (10) — tune sau nếu mở trận quá nhanh.
+  - `regenProgress()`/`cooldownProgress()` trả 0..1 sẵn cho vòng tròn UI (task 1.5).
+  - StyleSystem quản lý CẢ 2 bên (Record<Side,...>), event listener thuần (không Phaser),
+    `advantage()` trả bên đang khắc cho UI buff. Switch trùng style → false, không tốn cooldown.
+  - Hook Phase 3 đánh dấu sẵn trong code: F1 slowRegen (intervalMs), P4 switchCooldownDown (switchTo).
+  - Tổng test core: 81 pass (`npm test`).
 
 ### 1.5. BattleScene — dựng UI (placeholder graphics)
 - [ ] MF bar 2 bên (NPC trên, player dưới trái)

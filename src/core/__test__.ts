@@ -188,8 +188,164 @@ function card(id: string): CardDef {
   check('đòn 0 dmg không tốn shield', def.shields, 50);
 }
 
+// ============================================================
+// Task 1.4 — InspirationSystem
+// ============================================================
+import { InspirationSystem } from './InspirationSystem';
+import { StyleSystem } from './StyleSystem';
+import type { StyleSwitchEvent } from './StyleSystem';
+
+// ---------- 12. Inspiration: spend + chặn khi thiếu ----------
+{
+  const st = createCombatant('rebuttal', TEAM, NOW);
+  const insp = new InspirationSystem(st, NOW);
+  check('khởi đầu đầy', insp.value, BALANCE.INSPIRATION_MAX);
+  check('spend 4 ok', insp.spend(4), true);
+  check('còn 6', insp.value, 6);
+  check('spend 7 bị chặn', insp.spend(7), false);
+  check('chặn → không trừ gì', insp.value, 6);
+  check('canAfford 6', insp.canAfford(6), true);
+  check('canAfford 7', insp.canAfford(7), false);
+}
+
+// ---------- 13. Inspiration: regen +1/2s, cap max ----------
+{
+  const st = createCombatant('rebuttal', TEAM, NOW);
+  const insp = new InspirationSystem(st, NOW);
+  insp.spend(5); // còn 5
+
+  check('chưa tới mốc → 0', insp.tick(NOW + BALANCE.INSPIRATION_REGEN_MS - 1), 0);
+  check('đúng mốc → +1', insp.tick(NOW + BALANCE.INSPIRATION_REGEN_MS), 1);
+  check('giá trị 6', insp.value, 6);
+  check('tick lại cùng mốc → 0 (không double)', insp.tick(NOW + BALANCE.INSPIRATION_REGEN_MS), 0);
+
+  // frame trễ: bù nhiều mốc 1 lần nhưng không vượt max
+  const farFuture = NOW + BALANCE.INSPIRATION_REGEN_MS * 20;
+  check('bù mốc trễ, cap max', insp.tick(farFuture), BALANCE.INSPIRATION_MAX - 6);
+  check('đầy max', insp.value, BALANCE.INSPIRATION_MAX);
+  check('đầy → tick 0', insp.tick(farFuture + BALANCE.INSPIRATION_REGEN_MS * 2), 0);
+  check('đầy → progress 0', insp.regenProgress(farFuture), 0);
+}
+
+// ---------- 14. Inspiration: recover / drain ----------
+{
+  const st = createCombatant('rebuttal', TEAM, NOW);
+  const insp = new InspirationSystem(st, NOW);
+  insp.spend(8); // còn 2
+  check('recover 3 (F5)', insp.recover(3), 3);
+  check('giá trị 5', insp.value, 5);
+  check('recover quá max chỉ nhận phần thiếu', insp.recover(99), BALANCE.INSPIRATION_MAX - 5);
+  insp.spend(9); // còn 1
+  check('drain 1 (R4)', insp.drain(1), 1);
+  check('drain khi 0 → 0', insp.drain(1), 0);
+  check('không âm', insp.value, 0);
+}
+
+// ---------- 15. Inspiration: regenProgress cho vòng UI ----------
+{
+  const st = createCombatant('rebuttal', TEAM, NOW);
+  const insp = new InspirationSystem(st, NOW);
+  insp.spend(5);
+  insp.tick(NOW); // đồng bộ mốc
+  check('progress giữa chừng', insp.regenProgress(NOW + BALANCE.INSPIRATION_REGEN_MS / 2), 0.5);
+}
+
+// ============================================================
+// Task 1.4 — StyleSystem
+// ============================================================
+
+// ---------- 16. Switch cooldown 15s ----------
+{
+  const player = createCombatant('rebuttal', TEAM, NOW);
+  const opponent = createCombatant('bluster', TEAM, NOW);
+  const styles = new StyleSystem({ player, opponent });
+
+  check('vừa vào trận chưa được switch', styles.canSwitch('player', NOW), false);
+  check('switch sớm bị chặn', styles.switchTo('player', 'bluster', NOW + 1000), false);
+  check('style giữ nguyên khi bị chặn', styles.styleOf('player'), 'rebuttal');
+
+  const readyAt = NOW + BALANCE.STYLE_SWITCH_COOLDOWN_MS;
+  check('đủ 15s → được switch', styles.canSwitch('player', readyAt), true);
+  check('switch ok', styles.switchTo('player', 'bluster', readyAt), true);
+  check('style đã đổi', styles.styleOf('player'), 'bluster');
+  check('cooldown reset sau switch', styles.canSwitch('player', readyAt + 1000), false);
+  check(
+    'sẵn sàng lại sau 15s nữa',
+    styles.canSwitch('player', readyAt + BALANCE.STYLE_SWITCH_COOLDOWN_MS),
+    true,
+  );
+}
+
+// ---------- 17. Switch trùng style không tốn cooldown ----------
+{
+  const player = createCombatant('rebuttal', TEAM, NOW);
+  const opponent = createCombatant('bluster', TEAM, NOW);
+  const styles = new StyleSystem({ player, opponent });
+  const readyAt = NOW + BALANCE.STYLE_SWITCH_COOLDOWN_MS;
+  check('switch sang chính nó → false', styles.switchTo('player', 'rebuttal', readyAt), false);
+  check('không tốn cooldown oan', styles.canSwitch('player', readyAt), true);
+}
+
+// ---------- 18. Event khi switch + unsubscribe ----------
+{
+  const player = createCombatant('rebuttal', TEAM, NOW);
+  const opponent = createCombatant('bluster', TEAM, NOW);
+  const styles = new StyleSystem({ player, opponent });
+  const events: StyleSwitchEvent[] = [];
+  const unsub = styles.onSwitch((e) => events.push(e));
+
+  const readyAt = NOW + BALANCE.STYLE_SWITCH_COOLDOWN_MS;
+  styles.switchTo('player', 'provocation', readyAt);
+  check('event bắn 1 lần', events.length, 1);
+  check('event.from', events[0].from, 'rebuttal');
+  check('event.to', events[0].to, 'provocation');
+  check('event.side', events[0].side, 'player');
+
+  styles.switchTo('player', 'bluster', readyAt + 1000); // cooldown → không bắn
+  check('switch fail không bắn event', events.length, 1);
+
+  unsub();
+  styles.switchTo('opponent', 'rebuttal', readyAt);
+  check('unsubscribe → không nhận nữa', events.length, 1);
+}
+
+// ---------- 19. Advantage (bên nào đang khắc) ----------
+{
+  const player = createCombatant('rebuttal', TEAM, NOW);
+  const opponent = createCombatant('filibuster', TEAM, NOW); // rebuttal khắc filibuster
+  const styles = new StyleSystem({ player, opponent });
+  check('player đang khắc', styles.advantage(), 'player');
+
+  opponent.style = 'provocation'; // provocation khắc rebuttal
+  check('opponent đang khắc', styles.advantage(), 'opponent');
+
+  opponent.style = 'rebuttal'; // cùng style
+  check('không ai khắc ai', styles.advantage(), null);
+
+  opponent.style = 'bluster'; // rebuttal vs bluster: không chiều nào
+  check('cặp không liền kề → null', styles.advantage(), null);
+}
+
+// ---------- 20. cooldownProgress cho nút switch UI ----------
+{
+  const player = createCombatant('rebuttal', TEAM, NOW);
+  const opponent = createCombatant('bluster', TEAM, NOW);
+  const styles = new StyleSystem({ player, opponent });
+  check('vừa vào trận progress 0', styles.cooldownProgress('player', NOW), 0);
+  check(
+    'giữa cooldown progress 0.5',
+    styles.cooldownProgress('player', NOW + BALANCE.STYLE_SWITCH_COOLDOWN_MS / 2),
+    0.5,
+  );
+  check(
+    'sẵn sàng progress 1',
+    styles.cooldownProgress('player', NOW + BALANCE.STYLE_SWITCH_COOLDOWN_MS * 2),
+    1,
+  );
+}
+
 // ---------- Tổng kết ----------
-console.log(`\nCombatEngine: ${pass} passed, ${fails.length} failed`);
+console.log(`\ncore tests: ${pass} passed, ${fails.length} failed`);
 if (fails.length > 0) {
   for (const f of fails) console.log(`  FAIL  ${f}`);
   throw new Error(`${fails.length} test(s) failed`);

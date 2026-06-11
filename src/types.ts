@@ -84,6 +84,9 @@ export interface TrashTalkOption {
   kind: 'heavy' | 'recover' | 'silence' | 'quiz';
 }
 
+/** 2 phía trong trận — PVE: opponent = NPC; PVP (Phase 4): opponent = người thật */
+export type Side = 'player' | 'opponent';
+
 /** Data truyền vào BattleScene khi scene.start */
 export interface BattleSceneData {
   playerStyle: Style;
