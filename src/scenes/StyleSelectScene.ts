@@ -2,7 +2,9 @@
 import Phaser from 'phaser';
 import type { BattleSceneData, Style } from '../types';
 import { BALANCE, STYLE_COLORS, STYLE_COUNTERS, STYLE_LABELS, STYLE_TAGLINES } from '../core/constants';
+import { VIEW } from '../core/view';
 import { SCENES } from './keys';
+import { addText, setupView } from './ui';
 
 export class StyleSelectScene extends Phaser.Scene {
   constructor() {
@@ -10,18 +12,16 @@ export class StyleSelectScene extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
+    setupView(this);
 
-    this.add
-      .text(width / 2, 52, 'CHOOSE YOUR STYLE', {
-        fontSize: '40px',
-        color: '#fddb00',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5);
+    addText(this, VIEW.W / 2, 52, 'CHOOSE YOUR STYLE', {
+      fontSize: '40px',
+      color: '#fddb00',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
 
-    const cx = width / 2;
-    const cy = height / 2 + 24;
+    const cx = VIEW.W / 2;
+    const cy = VIEW.H / 2 + 24;
     const ringR = 190;
     const nodeR = 58;
 
@@ -47,19 +47,15 @@ export class StyleSelectScene extends Phaser.Scene {
 
       const circle = this.add.circle(x, y, nodeR, STYLE_COLORS[style]);
       circle.setStrokeStyle(3, 0xffffff, 0.6);
-      this.add
-        .text(x, y, STYLE_LABELS[style], {
-          fontSize: '16px',
-          color: '#1a120b',
-          fontStyle: 'bold',
-        })
-        .setOrigin(0.5);
-      this.add
-        .text(x, y + nodeR + 18, STYLE_TAGLINES[style], {
-          fontSize: '14px',
-          color: '#aaaaaa',
-        })
-        .setOrigin(0.5);
+      addText(this, x, y, STYLE_LABELS[style], {
+        fontSize: '16px',
+        color: '#1a120b',
+        fontStyle: 'bold',
+      }).setOrigin(0.5);
+      addText(this, x, y + nodeR + 18, STYLE_TAGLINES[style], {
+        fontSize: '14px',
+        color: '#aaaaaa',
+      }).setOrigin(0.5);
 
       circle.setInteractive({ useHandCursor: true });
       circle.on('pointerover', () => circle.setScale(1.08));
@@ -71,11 +67,9 @@ export class StyleSelectScene extends Phaser.Scene {
     });
 
     const buffPct = Math.round((BALANCE.STYLE_BUFF - 1) * 100);
-    this.add
-      .text(cx, height - 26, `▶ = counters — style advantage = +${buffPct}% dmg · switch again every ${BALANCE.STYLE_SWITCH_COOLDOWN_MS / 1000}s in battle`, {
-        fontSize: '15px',
-        color: '#888888',
-      })
-      .setOrigin(0.5);
+    addText(this, cx, VIEW.H - 26, `▶ = counters — style advantage = +${buffPct}% dmg · switch again every ${BALANCE.STYLE_SWITCH_COOLDOWN_MS / 1000}s in battle`, {
+      fontSize: '15px',
+      color: '#888888',
+    }).setOrigin(0.5);
   }
 }

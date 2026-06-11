@@ -3,8 +3,9 @@
 import Phaser from 'phaser';
 import type { BattleSceneData, ResultSceneData, Style } from '../types';
 import { STYLE_COLORS, STYLE_LABELS } from '../core/constants';
+import { VIEW } from '../core/view';
 import { SCENES } from './keys';
-import { makeTextButton } from './ui';
+import { addText, makeTextButton, setupView } from './ui';
 
 export class BattleScene extends Phaser.Scene {
   private playerStyle: Style = 'rebuttal';
@@ -18,28 +19,24 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create() {
-    const { width, height } = this.scale;
+    setupView(this);
 
-    this.add
-      .text(width / 2, height * 0.22, 'BATTLE — placeholder (task 1.5)', {
-        fontSize: '32px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5);
+    addText(this, VIEW.W / 2, VIEW.H * 0.22, 'BATTLE — placeholder (task 1.5)', {
+      fontSize: '32px',
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
 
-    this.add.circle(width / 2, height * 0.42, 30, STYLE_COLORS[this.playerStyle]);
-    this.add
-      .text(width / 2, height * 0.42 + 52, `Your style: ${STYLE_LABELS[this.playerStyle]}`, {
-        fontSize: '22px',
-        color: '#cccccc',
-      })
-      .setOrigin(0.5);
+    this.add.circle(VIEW.W / 2, VIEW.H * 0.42, 30, STYLE_COLORS[this.playerStyle]);
+    addText(this, VIEW.W / 2, VIEW.H * 0.42 + 52, `Your style: ${STYLE_LABELS[this.playerStyle]}`, {
+      fontSize: '22px',
+      color: '#cccccc',
+    }).setOrigin(0.5);
 
-    makeTextButton(this, width / 2 - 150, height * 0.72, 'WIN (test)', () => this.end(true), {
+    makeTextButton(this, VIEW.W / 2 - 150, VIEW.H * 0.72, 'WIN (test)', () => this.end(true), {
       width: 240,
     });
-    makeTextButton(this, width / 2 + 150, height * 0.72, 'LOSE (test)', () => this.end(false), {
+    makeTextButton(this, VIEW.W / 2 + 150, VIEW.H * 0.72, 'LOSE (test)', () => this.end(false), {
       width: 240,
     });
   }

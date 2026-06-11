@@ -55,6 +55,9 @@ worker/              # Cloudflare Worker (Phase 2, chưa đụng)
 5. **Mobile-first**: mọi UI phải hoạt động với tap (Q/E trên mobile = 2 nút tap to bên trái/phải màn hình).
 6. Tiếng Việt cho comment quan trọng, tiếng Anh cho tên biến/hàm.
 7. **KHÔNG commit API key, .env, .dev.vars** — đã có trong .gitignore, đừng bypass.
+8. **Scene mới (chống mờ chữ)**: gọi `setupView(this)` đầu `create()`, đặt toạ độ theo
+   `VIEW.W/H` từ `core/view.ts` (KHÔNG dùng `this.scale.width/height` — framebuffer to gấp
+   RENDER_SCALE lần), tạo chữ bằng `addText()` từ `scenes/ui.ts` thay vì `this.add.text`.
 
 ## Thông số gameplay hiện tại (nguồn: docs/CARDS.md — đọc bảng đầy đủ ở đó)
 - MF (máu): 1000 | Inspiration max: 10, regen +1/2s | Hand: 4 lá
