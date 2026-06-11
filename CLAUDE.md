@@ -63,6 +63,8 @@ worker/              # Cloudflare Worker (Phase 2, chưa đụng)
 - MF (máu): 1000 | Inspiration max: 10, regen +1/2s | Hand: 4 lá
 - Style switch cooldown: 15s | Counter window: 5s
 - finalDmg = base × styleBuff(1.25) × contentCounter(1.5) × combo(1.25/2.0) × mark(1.1)
+- Heal: COUNTERED hút 30% final; combo x3 +60; quiz NPC sai +50; bia channel 2s +135
+  (sặc nếu ăn đòn: +20% dmg đòn đó, cooldown 25s)
 - 4 style RPS: Rebuttal > Filibuster > Bluster > Provocation > Rebuttal
 - Content counter: Rational > Intimidation > Emotional > Fan-Shaming > Rational
 

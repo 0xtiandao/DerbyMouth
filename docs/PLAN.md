@@ -186,7 +186,14 @@ Trận đấu real-time, KHÔNG strict turn-based — ai nhanh tay lợi thế.
 --- kết thúc khi 1 bên MF = 0 ---
 ```
 
-**Không bên nào heal MF.** Ai về 0 trước thua.
+**Heal MF tồn tại nhưng là PHẦN THƯỞNG cho skill/risk, không phải nút spam** (update 2026-06-12 — bỏ rule "không heal" kế thừa WWM, có chống turtle meta):
+1. **Crowd Lifesteal** — roast hay = khán giả cười = hồi tinh thần: COUNTERED hút 30% dmg
+   gây ra thành máu; combo x3 finisher hồi flat 60; đối thủ quiz sai hồi 50.
+2. **Liquid Courage** — nút uống bia: channel 2s → hồi 135. Trong lúc uống không chơi card,
+   không Q/E; bị trúng đòn = SẶC: mất heal + dính thêm 20% đòn đó; cooldown 25s tính từ lúc
+   bắt đầu uống (sặc vẫn mất lượt). Mind-game mới: "nó sắp uống kìa, đập ngay!"
+
+Ai về 0 trước thua.
 
 ---
 

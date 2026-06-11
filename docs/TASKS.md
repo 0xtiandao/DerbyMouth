@@ -197,6 +197,20 @@
 **CHECKPOINT PHASE 2 (local): QTE + quiz + AI thật chạy trong game.
 Còn lại cho deploy (Phase 5): KV namespace thật + wrangler secret + siết CORS.**
 
+### 2.5. (extra, theo yêu cầu 2026-06-12) Cơ chế hồi máu ✅
+- [x] Crowd Lifesteal: COUNTERED hút 30% final thành máu; combo x3 hồi flat 60;
+      quiz NPC sai hồi 50 — heal gắn vào skill, áp cho CẢ 2 BÊN (NPC counter cũng hút máu)
+- [x] Liquid Courage: nút bia cạnh nút switch — channel 2s hồi 135; đang uống không chơi
+      card/Q-E; ăn đòn giữa chừng = SẶC (mất heal + dính thêm 20% đòn đó); cooldown 25s
+      tính từ lúc bắt đầu uống (sặc vẫn mất lượt)
+- Ghi chú:
+  - `applyHeal` + lifesteal nằm trong `resolveCardPlay` (core, PVP sau dùng chung);
+    `core/BeerChannel.ts` pure TS. 26 test mới (tổng 163).
+  - Lifesteal tính theo final (trước shield) — thưởng cú đánh hay, không phạt vì shield.
+  - PLAN.md mục 2 đã sửa (bỏ rule "không bên nào heal").
+  - Test tay: sặc tự nhiên (-50 đòn → phạt -10 = 20% ✓, mất heal, mất lượt);
+    uống trọn +130 (heal 135 cap vì chỉ thiếu 130 ✓) MF đầy lại; chặn card khi uống ✓.
+
 ## PHASE 3 — Polish PVE
 - [ ] Mark/debuff effects còn lại trong cards.ts (F1 slow regen, F2 shield, F4 cost+1, B2 buff next, P2 mark...)
 - [ ] NPC brain v2: ưu tiên counter content type player vừa đánh, switch style có logic

@@ -45,6 +45,17 @@ export const BALANCE = {
   QUIZ_BADGE_DURATION_MS: 8000, // badge "fan nửa mùa" + mark tồn tại bao lâu
   QUIZ_BADGE_MARK_VALUE: 10,    // badge kèm mark +10% dmg nhận vào (dùng cơ chế mark có sẵn)
 
+  // Hồi máu — heal là PHẦN THƯỞNG cho skill/risk, không phải nút spam (chống turtle meta)
+  // 1) Crowd Lifesteal: roast hay = khán giả cười = hồi tinh thần
+  LIFESTEAL_COUNTER_PCT: 30,    // COUNTERED → hút 30% dmg gây ra thành máu
+  COMBO3_HEAL: 60,              // chốt combo x3 → hồi flat
+  QUIZ_WRONG_HEAL: 50,          // đối thủ quiz sai → nó quê = mày sướng
+  // 2) Liquid Courage: uống bia channel, hở sườn
+  BEER_CHANNEL_MS: 2000,        // thời gian uống — không chơi card, không Q/E
+  BEER_HEAL: 135,
+  BEER_CHOKE_BONUS_PCT: 20,     // bị đánh giữa chừng = sặc: mất heal + dính thêm 20% đòn đó
+  BEER_COOLDOWN_MS: 25000,      // tính từ lúc BẮT ĐẦU uống — sặc vẫn mất lượt
+
   // NPC
   NPC_PLAY_INTERVAL_MIN_MS: 3000,
   NPC_PLAY_INTERVAL_MAX_MS: 5000,

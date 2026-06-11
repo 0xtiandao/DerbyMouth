@@ -134,6 +134,13 @@ export function isSilenced(state: CombatantState, now: number): boolean {
   return now < state.silencedUntil;
 }
 
+/** Hồi MF (Crowd Lifesteal / Liquid Courage / quiz). Trả về số máu hồi thật (cap mfMax). */
+export function applyHeal(state: CombatantState, amount: number): number {
+  const healed = Math.min(amount, state.mfMax - state.mf);
+  state.mf += healed;
+  return healed;
+}
+
 /** Trừ MF qua shield. Shield (F2) chặn tối đa `shields` dmg của ĐÚNG 1 đòn kế tiếp —
  *  dùng xong là mất hết kể cả chặn chưa đủ giá trị. Đòn 0 dmg không tốn shield. */
 export function applyDamage(
@@ -148,16 +155,24 @@ export function applyDamage(
   return { absorbed, mfLoss };
 }
 
-/** Một lượt đánh card trọn vẹn: tính dmg → ghi nhận combo → trừ MF defender.
+/** Một lượt đánh card trọn vẹn: tính dmg → ghi nhận combo → trừ MF defender
+ *  → Crowd Lifesteal cho attacker (COUNTERED hút 30% final, combo x3 hồi flat).
  *  KHÔNG xử lý Inspiration cost (task 1.4) và các effect ngoài formula (task 1.6/Phase 3). */
 export function resolveCardPlay(
   card: CardDef,
   attacker: CombatantState,
   defender: CombatantState,
   now: number,
-): DamageBreakdown & { mfLoss: number } {
+): DamageBreakdown & { mfLoss: number; healed: number } {
   const breakdown = computeDamage(card, attacker, defender, now);
   registerCardPlayed(attacker, card, breakdown.comboLevel, now);
   const { mfLoss } = applyDamage(defender, breakdown.final);
-  return { ...breakdown, mfLoss };
+
+  // Crowd Lifesteal: heal theo final (trước shield) — thưởng cú đánh hay, không phạt vì shield
+  let heal = 0;
+  if (breakdown.countered) heal += Math.round((breakdown.final * BALANCE.LIFESTEAL_COUNTER_PCT) / 100);
+  if (breakdown.comboLevel === 3) heal += BALANCE.COMBO3_HEAL;
+  const healed = heal > 0 ? applyHeal(attacker, heal) : 0;
+
+  return { ...breakdown, mfLoss, healed };
 }

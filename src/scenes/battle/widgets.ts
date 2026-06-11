@@ -257,6 +257,61 @@ export class SpeechBubble extends Phaser.GameObjects.Container {
   }
 }
 
+/** Nút bia "Liquid Courage": vòng cooldown như nút switch, sáng khi sẵn sàng;
+ *  đang uống → vòng xanh lá chạy theo channel progress. */
+export class BeerButton extends Phaser.GameObjects.Container {
+  private readonly ring: Phaser.GameObjects.Graphics;
+  private readonly btn: Phaser.GameObjects.Arc;
+  private readonly icon: Phaser.GameObjects.Text;
+  private ready = false;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, onTap: () => void) {
+    super(scene, x, y);
+    this.btn = scene.add.circle(0, 0, 26, 0x2d2418).setStrokeStyle(2, 0x777777);
+    this.icon = addText(scene, 0, 0, '🍺', { fontSize: '22px' }).setOrigin(0.5).setAlpha(0.5);
+    this.ring = scene.add.graphics();
+    this.add([this.btn, this.icon, this.ring]);
+    scene.add.existing(this);
+
+    this.btn.setInteractive({ useHandCursor: true });
+    this.btn.on('pointerdown', onTap);
+  }
+
+  refresh(opts: {
+    ready: boolean;
+    cooldownProgress: number;
+    channeling: boolean;
+    channelProgress: number;
+  }) {
+    if (opts.ready !== this.ready) {
+      this.ready = opts.ready;
+      this.btn.setStrokeStyle(2, opts.ready ? 0xfddb00 : 0x777777);
+      this.icon.setAlpha(opts.ready ? 1 : 0.5);
+    }
+    this.ring.clear();
+    if (opts.channeling) {
+      // đang uống: vòng xanh lá đầy dần
+      this.ring.lineStyle(4, 0x22c55e, 1);
+      this.drawArc(opts.channelProgress);
+    } else {
+      this.ring.lineStyle(3, opts.ready ? 0xfddb00 : 0xaaaaaa, opts.ready ? 1 : 0.7);
+      this.drawArc(opts.cooldownProgress);
+    }
+  }
+
+  private drawArc(progress: number) {
+    this.ring.beginPath();
+    this.ring.arc(
+      0,
+      0,
+      33,
+      Phaser.Math.DegToRad(-90),
+      Phaser.Math.DegToRad(-90 + 360 * Math.min(1, progress)),
+    );
+    this.ring.strokePath();
+  }
+}
+
 export interface BanterEntry {
   side: 'player' | 'opponent'; // player = căn phải, opponent = căn trái (kiểu chat)
   name: string;

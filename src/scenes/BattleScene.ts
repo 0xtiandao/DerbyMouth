@@ -17,11 +17,13 @@ import { BALANCE, CONTENT_COLORS, STYLE_LABELS } from '../core/constants';
 import { VIEW } from '../core/view';
 import {
   applyDamage,
+  applyHeal,
   applySilence,
   createCombatant,
   isSilenced,
   resolveCardPlay,
 } from '../core/CombatEngine';
+import { BeerChannel } from '../core/BeerChannel';
 import { InspirationSystem } from '../core/InspirationSystem';
 import { NpcBrain } from '../core/NpcBrain';
 import { StyleSystem } from '../core/StyleSystem';
@@ -35,6 +37,7 @@ import { SCENES } from './keys';
 import { addText, setupView } from './ui';
 import {
   BanterLog,
+  BeerButton,
   CardView,
   InspirationBubble,
   MfBar,
@@ -65,6 +68,8 @@ export class BattleScene extends Phaser.Scene {
   private ending = false; // đã có bên thắng — đợi chuyển ResultScene
   private nextSuddenDrainAt = 0;
   private roastApi!: Record<Side, RoastBuffer>;
+  private beer!: BeerChannel;
+  private beerBtn!: BeerButton;
 
   private mfBarPlayer!: MfBar;
   private mfBarOpp!: MfBar;
@@ -162,6 +167,10 @@ export class BattleScene extends Phaser.Scene {
     this.switchBtn = new StyleSwitchButton(this, 290, 428, (style) => {
       this.styles.switchTo('player', style, this.time.now);
     });
+
+    // ----- Liquid Courage: nút bia cạnh nút switch -----
+    this.beer = new BeerChannel(this.player);
+    this.beerBtn = new BeerButton(this, 360, 428, () => this.tryDrink());
     addText(this, 40, 470, `${this.player.team.name} fan (you)`, {
       fontSize: '15px',
       color: '#cccccc',
@@ -216,6 +225,18 @@ export class BattleScene extends Phaser.Scene {
     const now = time;
     this.inspiration.player.tick(now);
     this.inspiration.opponent.tick(now);
+
+    // Liquid Courage: uống xong → hồi máu
+    const beerHealed = this.beer.tick(now);
+    if (beerHealed > 0) {
+      this.floatText(420, 470, `+${beerHealed} 🍺`, '#22c55e', 0, '26px');
+    }
+    this.beerBtn.refresh({
+      ready: this.beer.canStart(now),
+      cooldownProgress: this.beer.cooldownProgress(now),
+      channeling: this.beer.isChanneling(),
+      channelProgress: this.beer.channelProgress(now),
+    });
 
     // NPC brain: thực thi quyết định (switch qua StyleSystem — tự enforce cooldown)
     for (const action of this.npcBrain.tick(now)) {
@@ -308,6 +329,11 @@ export class BattleScene extends Phaser.Scene {
       this.floatText(HIT_POS.player.x, HIT_POS.player.y, 'SILENCED', '#9ca3af', 0, '20px');
       return;
     }
+    if (this.beer.isChanneling()) {
+      // đang uống bia — miệng bận, không chửi được
+      this.floatText(360, 380, 'DRINKING...', '#9ca3af', 0, '18px');
+      return;
+    }
 
     // 1) check + trừ Inspiration. Thiếu → rung lá, không mất gì.
     if (!this.inspiration.player.spend(card.cost)) {
@@ -329,8 +355,12 @@ export class BattleScene extends Phaser.Scene {
     this.burstParticles(330, 395, CONTENT_COLORS[card.content]);
 
     // 3) damage qua core: style buff + counter + combo + mark, trừ MF NPC
+    //    + Crowd Lifesteal (countered/combo x3 hồi máu)
     const result = resolveCardPlay(card, this.player, this.opponent, now);
     this.showHitFeedback(result, 'opponent');
+    if (result.healed > 0) {
+      this.floatText(420, 470, `+${result.healed}`, '#22c55e', 300, '24px');
+    }
 
     // 4) effect tức thì core đã hỗ trợ (silence/recover/drain).
     //    Còn lại: shield/mark/slowRegen/costUp/buffNext → Phase 3; prompt/quiz → Phase 2.
@@ -362,7 +392,27 @@ export class BattleScene extends Phaser.Scene {
 
     const result = resolveCardPlay(card, this.opponent, this.player, now);
     this.showHitFeedback(result, 'player');
+    if (result.healed > 0) {
+      this.floatText(520, 100, `+${result.healed}`, '#22c55e', 300, '24px');
+    }
+
+    // Liquid Courage: ăn đòn giữa lúc uống = sặc bia — mất heal + dính thêm % đòn đó
+    if (this.beer.interrupt()) {
+      const extra = Math.round((result.final * BALANCE.BEER_CHOKE_BONUS_PCT) / 100);
+      applyDamage(this.player, extra);
+      this.floatText(HIT_POS.player.x, HIT_POS.player.y - 42, 'CHOKED! 🍺', '#ef4444', 100, '28px');
+      this.floatText(HIT_POS.player.x + 80, HIT_POS.player.y, `-${extra}`, '#ef4444', 220, '24px');
+      this.cameras.main.shake(150, 0.006);
+    }
+
     this.applyImmediateEffects(card, now, 'opponent');
+  }
+
+  /** Bắt đầu uống bia (Liquid Courage) — hở sườn 2s, sặc nếu ăn đòn. */
+  private tryDrink() {
+    if (this.ending) return;
+    if (!this.beer.start(this.time.now)) return; // cooldown / đang uống
+    this.floatText(360, 380, 'GLUG GLUG...', '#fddb00', 0, '18px');
   }
 
   private showHitFeedback(result: DamageBreakdown & { mfLoss: number }, victim: Side) {
@@ -387,6 +437,7 @@ export class BattleScene extends Phaser.Scene {
 
   private onQtePress(key: QteKey) {
     if (this.ending) return;
+    if (this.beer.isChanneling()) return; // đang uống — không Q/E được
     const now = this.time.now;
     const result = this.qte.pressKey(key, now);
     if (result === 'ignored') return;
@@ -505,8 +556,11 @@ export class BattleScene extends Phaser.Scene {
           this.floatText(HIT_POS.player.x, HIT_POS.player.y, `-${mfLoss} REFLECT`, '#ef4444', 0, '26px');
         } else {
           // NPC sai → damage lớn + badge "fan nửa mùa" + mark (nhận thêm dmg)
+          // + Crowd Lifesteal: nó quê = mày sướng → hồi máu
           const { mfLoss } = applyDamage(this.opponent, bonusDmg);
           this.floatText(HIT_POS.opponent.x, HIT_POS.opponent.y, `-${mfLoss}`, '#22c55e', 0, '36px');
+          const healed = applyHeal(this.player, BALANCE.QUIZ_WRONG_HEAL);
+          if (healed > 0) this.floatText(420, 470, `+${healed}`, '#22c55e', 300, '24px');
           this.opponent.marks.push({
             value: BALANCE.QUIZ_BADGE_MARK_VALUE,
             expiresAt: revealNow + BALANCE.QUIZ_BADGE_DURATION_MS,

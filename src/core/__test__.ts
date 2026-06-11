@@ -586,6 +586,91 @@ import { SAMPLE_QUIZ } from '../data/fallbackRoasts';
   check('chứa đủ nhiễu', q.wrong.every((w) => answers.includes(w)), true);
 }
 
+// ============================================================
+// Hồi máu — Crowd Lifesteal + Liquid Courage
+// ============================================================
+import { applyHeal } from './CombatEngine';
+import { BeerChannel } from './BeerChannel';
+
+// ---------- 36. applyHeal cap mfMax ----------
+{
+  const st = createCombatant('rebuttal', TEAM, NOW);
+  st.mf = 900;
+  check('heal đủ khoảng trống', applyHeal(st, 50), 50);
+  check('mf 950', st.mf, 950);
+  check('heal vượt max chỉ nhận phần thiếu', applyHeal(st, 200), 50);
+  check('mf cap 1000', st.mf, BALANCE.MF_MAX);
+}
+
+// ---------- 37. Lifesteal khi COUNTERED (30% final) ----------
+{
+  const atk = createCombatant('rebuttal', TEAM, NOW);
+  const def = createCombatant('rebuttal', TEAM, NOW);
+  atk.mf = 500;
+  registerCardPlayed(def, card('B1'), 1, NOW - 1000); // def vừa đánh intimidation
+  const r = resolveCardPlay(card('R1'), atk, def, NOW); // countered: final 135
+  check('lifesteal = 30% của 135', r.healed, 41); // round(40.5)
+  check('attacker mf 541', atk.mf, 541);
+}
+
+// ---------- 38. Combo x3 finisher hồi flat ----------
+{
+  const atk = createCombatant('rebuttal', TEAM, NOW);
+  const def = createCombatant('rebuttal', TEAM, NOW);
+  atk.mf = 500;
+  resolveCardPlay(card('B5'), atk, def, NOW);
+  resolveCardPlay(card('B5'), atk, def, NOW + 1000);
+  const r3 = resolveCardPlay(card('R5'), atk, def, NOW + 2000); // combo x3
+  check('combo x3 hồi flat', r3.healed, BALANCE.COMBO3_HEAL);
+  check('đòn thường không hồi', resolveCardPlay(card('B1'), atk, def, NOW + 3000).healed, 0);
+}
+
+// ---------- 39. Counter + combo x3 cộng dồn heal ----------
+{
+  const atk = createCombatant('rebuttal', TEAM, NOW);
+  const def = createCombatant('filibuster', TEAM, NOW);
+  atk.mf = 100;
+  registerCardPlayed(def, card('B1'), 1, NOW - 1000);
+  def.marks.push({ value: 10, expiresAt: NOW + 5000 });
+  atk.lastCardContent = 'rational';
+  atk.comboCount = 2;
+  const r = resolveCardPlay(card('R5'), atk, def, NOW); // full stack final 619
+  check('heal cộng dồn 186+60', r.healed, 246); // round(619*0.3)=186 + 60
+}
+
+// ---------- 40. BeerChannel: uống trọn → hồi, cooldown chạy ----------
+{
+  const st = createCombatant('rebuttal', TEAM, NOW);
+  st.mf = 500;
+  const beer = new BeerChannel(st);
+
+  check('sẵn sàng uống', beer.canStart(NOW), true);
+  check('start ok', beer.start(NOW), true);
+  check('đang uống', beer.isChanneling(), true);
+  check('đang uống không start lại được', beer.start(NOW + 100), false);
+  check('chưa xong → 0', beer.tick(NOW + BALANCE.BEER_CHANNEL_MS - 1), 0);
+  check('uống xong → hồi', beer.tick(NOW + BALANCE.BEER_CHANNEL_MS), BALANCE.BEER_HEAL);
+  check('mf tăng đúng', st.mf, 500 + BALANCE.BEER_HEAL);
+  check('hết channel', beer.isChanneling(), false);
+  check('cooldown chặn lượt mới', beer.canStart(NOW + BALANCE.BEER_CHANNEL_MS + 1), false);
+  check('hết cooldown lại uống được', beer.canStart(NOW + BALANCE.BEER_COOLDOWN_MS), true);
+}
+
+// ---------- 41. BeerChannel: sặc (interrupt) mất heal + mất lượt ----------
+{
+  const st = createCombatant('rebuttal', TEAM, NOW);
+  st.mf = 500;
+  const beer = new BeerChannel(st);
+  beer.start(NOW);
+  check('progress giữa chừng', beer.channelProgress(NOW + BALANCE.BEER_CHANNEL_MS / 2), 0.5);
+  check('sặc khi đang uống → true', beer.interrupt(), true);
+  check('sặc xong không còn channel', beer.isChanneling(), false);
+  check('sặc → không hồi', beer.tick(NOW + BALANCE.BEER_CHANNEL_MS), 0);
+  check('mf giữ nguyên', st.mf, 500);
+  check('sặc vẫn mất lượt (cooldown chạy)', beer.canStart(NOW + BALANCE.BEER_CHANNEL_MS), false);
+  check('interrupt khi không uống → false', beer.interrupt(), false);
+}
+
 // ---------- Tổng kết ----------
 console.log(`\ncore tests: ${pass} passed, ${fails.length} failed`);
 if (fails.length > 0) {
