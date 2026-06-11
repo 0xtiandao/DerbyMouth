@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npx -y tsx src/core/__test__.ts"
   },
   "dependencies": {
     "phaser": "^3.87.0"

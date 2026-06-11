@@ -22,12 +22,21 @@
   - `BattleScene` hiện là STUB (nhận playerStyle, 2 nút WIN/LOSE test) — thay bằng UI thật ở task 1.5/1.6/1.8.
   - Đã test tay full flow trong browser (Edge headless): menu → chọn style → battle → win/lose → chơi lại/menu.
 
-### 1.3. Core: CombatEngine (pure TS, không Phaser)
-- [ ] Damage formula đầy đủ (đọc CLAUDE.md + docs/CARDS.md mục 0)
-- [ ] Counter window check (content type, 5s)
-- [ ] Combo chain state (x2/x3, đứt khi đổi loại hoặc bị silence)
-- [ ] Style buff check (RPS 4 style)
-- [ ] Unit-test nhanh bằng 1 file `core/__test__.ts` chạy với tsx hoặc console (không cần framework)
+### 1.3. Core: CombatEngine (pure TS, không Phaser) ✅
+- [x] Damage formula đầy đủ (đọc CLAUDE.md + docs/CARDS.md mục 0)
+- [x] Counter window check (content type, 5s)
+- [x] Combo chain state (x2/x3, đứt khi đổi loại hoặc bị silence)
+- [x] Style buff check (RPS 4 style)
+- [x] Unit-test nhanh bằng 1 file `core/__test__.ts` chạy với tsx hoặc console (không cần framework)
+- Ghi chú (2026-06-11) — quyết định thiết kế:
+  - Mọi hàm nhận `now` từ ngoài (không tự đọc đồng hồ) → test được bằng mốc giả.
+  - Sau combo x3 (finale) chuỗi RESET — card thứ 4 cùng loại bắt đầu chuỗi mới level 1.
+  - `counterBonus` (R1) cộng vào base TRƯỚC khi nhân; `comboFinisherX2` (B3) gộp vào comboMult
+    → giữ invariant: final = round(tích 5 cột breakdown).
+  - markBonus tính từ `mark.value` trong card data (P2: 10 → ×1.1), lấy mark mạnh nhất nếu nhiều.
+  - Shield (F2) chặn ĐÚNG 1 đòn rồi mất hết (kể cả chặn chưa đủ); đòn 0 dmg không tốn shield.
+  - Silence tự breakCombo (PLAN 2.6). Inspiration cost CHƯA trừ ở đây — task 1.4.
+  - `npm test` = npx tsx (không thêm devDependency). 36 test pass.
 
 ### 1.4. Core: InspirationSystem + StyleSystem
 - [ ] Inspiration: max 10, regen +1/2s, trừ theo cost, chặn chơi card khi thiếu
