@@ -63,6 +63,13 @@ export const CONTENT_COLORS: Record<ContentType, number> = {
   fanshaming: 0x22c55e,   // green
 };
 
+export const CONTENT_LABELS: Record<ContentType, string> = {
+  rational: 'Rational',
+  emotional: 'Emotional',
+  intimidation: 'Intimidation',
+  fanshaming: 'Fan-Shaming',
+};
+
 export const STYLE_LABELS: Record<Style, string> = {
   rebuttal: 'Rebuttal',
   filibuster: 'Filibuster',

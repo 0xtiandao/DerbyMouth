@@ -51,12 +51,21 @@
   - Hook Phase 3 đánh dấu sẵn trong code: F1 slowRegen (intervalMs), P4 switchCooldownDown (switchTo).
   - Tổng test core: 81 pass (`npm test`).
 
-### 1.5. BattleScene — dựng UI (placeholder graphics)
-- [ ] MF bar 2 bên (NPC trên, player dưới trái)
-- [ ] Inspiration bubble: số + vòng regen quay quanh (Phaser Arc)
-- [ ] Style indicator 2 bên + nút switch (sáng khi hết cooldown, vòng đếm ngược)
-- [ ] Hand 4 card: khung + cost + tên + content type màu (Blue/Pink/Red/Green)
-- [ ] Timer trận trên góc phải
+### 1.5. BattleScene — dựng UI (placeholder graphics) ✅
+- [x] MF bar 2 bên (NPC trên, player dưới trái)
+- [x] Inspiration bubble: số + vòng regen quay quanh (Phaser Arc)
+- [x] Style indicator 2 bên + nút switch (sáng khi hết cooldown, vòng đếm ngược)
+- [x] Hand 4 card: khung + cost + tên + content type màu (Blue/Pink/Red/Green)
+- [x] Timer trận trên góc phải
+- Ghi chú (2026-06-11):
+  - Widget tách riêng `scenes/battle/widgets.ts` (MfBar/InspirationBubble/StyleIndicator/
+    StyleSwitchButton/CardView) — chỉ hiển thị, nhận giá trị qua `refresh()`; Phase 5 thay asset ở đây.
+  - Nút switch: tap khi sáng → picker 3 style còn lại pop lên, chọn → StyleSystem.switchTo.
+    Đã test tay: switch Rebuttal→Filibuster ăn cooldown mới + badge "+25%" hiện đúng khi khắc NPC.
+  - StyleIndicator kèm badge "▲ +25% style advantage" (đọc từ BALANCE.STYLE_BUFF) khi advantage().
+  - Hand 1.5 = 4 lá random từ pool style chọn; thiếu Inspiration → card mờ (alpha 0.4).
+    Rút lá khi chơi = task 1.6. Đội 2 bên random từ teams.ts (profile thật = Phase 4).
+  - Nút WIN/LOSE (test) còn ở top-center — xóa ở task 1.8.
 
 ### 1.6. BattleScene — chơi card
 - [ ] Tap card → check Inspiration → trừ cost → lấy câu roast từ fallbackRoasts theo content type
