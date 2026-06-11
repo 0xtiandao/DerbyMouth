@@ -67,12 +67,21 @@
     Rút lá khi chơi = task 1.6. Đội 2 bên random từ teams.ts (profile thật = Phase 4).
   - Nút WIN/LOSE (test) còn ở top-center — xóa ở task 1.8.
 
-### 1.6. BattleScene — chơi card
-- [ ] Tap card → check Inspiration → trừ cost → lấy câu roast từ fallbackRoasts theo content type
-- [ ] Speech bubble player (trái) hiện câu + tween pop + particle đơn giản
-- [ ] Gọi CombatEngine tính dmg (style buff + counter + combo) → trừ MF NPC
-- [ ] Hiện text "COUNTERED! +50%" / "COMBO x2/x3" khi trigger
-- [ ] Rút lá mới từ pool style hiện tại
+### 1.6. BattleScene — chơi card ✅
+- [x] Tap card → check Inspiration → trừ cost → lấy câu roast từ fallbackRoasts theo content type
+- [x] Speech bubble player (trái) hiện câu + tween pop + particle đơn giản
+- [x] Gọi CombatEngine tính dmg (style buff + counter + combo) → trừ MF NPC
+- [x] Hiện text "COUNTERED! +50%" / "COMBO x2/x3" khi trigger
+- [x] Rút lá mới từ pool style hiện tại
+- Ghi chú (2026-06-11):
+  - SpeechBubble widget generic (trái/phải) — NPC dùng lại ở task 1.7.
+  - Effect tức thì core đã hỗ trợ áp luôn: silence (R3, float "SILENCED"), recoverInspiration
+    (F3/F5, float +N ở bubble), drainInspiration (R4). Còn lại đúng roadmap Phase 2/3.
+  - Thiếu Inspiration → lá rung (shake tween), không mất gì. Roast né lặp câu liền trước.
+  - Rút lá tránh trùng lá đang cầm slot khác; lá mới pop scale tween.
+  - Screen shake nhẹ khi COUNTERED hoặc combo x3. Damage float jitter ngang chống đè số.
+  - Test tay verify: -80 → combo x2 -75 (60×1.25) → combo x3 -160 (80×2.0), MF 685 khớp;
+    Inspiration 0 → hand mờ + chặn. COUNTERED chưa trigger được vì NPC chưa đánh (task 1.7).
 
 ### 1.7. NPC brain v1 (đơn giản)
 - [ ] NPC tự chơi card mỗi 3-5s (random từ pool style của nó)

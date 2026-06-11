@@ -194,6 +194,69 @@ export class StyleSwitchButton extends Phaser.GameObjects.Container {
   }
 }
 
+/** Speech bubble: rounded rect + tail + text, pop tween khi show, tự fade sau 2.6s.
+ *  Dùng cho cả player (trái, task 1.6) và NPC (phải, task 1.7). */
+export class SpeechBubble extends Phaser.GameObjects.Container {
+  private readonly g: Phaser.GameObjects.Graphics;
+  private readonly text: Phaser.GameObjects.Text;
+  private hideTimer: Phaser.Time.TimerEvent | null = null;
+  private readonly maxWidth = 380;
+
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    private readonly tailSide: 'left' | 'right',
+  ) {
+    super(scene, x, y);
+    this.g = scene.add.graphics();
+    this.text = addText(scene, 0, 0, '', {
+      fontSize: '17px',
+      color: '#1a120b',
+      fontStyle: 'bold',
+      align: 'left',
+      wordWrap: { width: this.maxWidth - 32 },
+    }).setOrigin(0.5);
+    this.add([this.g, this.text]);
+    this.setVisible(false);
+    this.setDepth(5);
+    scene.add.existing(this);
+  }
+
+  show(message: string, accent: number) {
+    this.hideTimer?.remove();
+    this.scene.tweens.killTweensOf(this);
+    this.setAlpha(1);
+
+    this.text.setText(message);
+    const w = Math.max(120, Math.min(this.maxWidth, this.text.width + 32));
+    const h = this.text.height + 24;
+
+    this.g.clear();
+    this.g.fillStyle(0xfff8ee, 1);
+    this.g.lineStyle(3, accent, 1);
+    this.g.fillRoundedRect(-w / 2, -h / 2, w, h, 12);
+    this.g.strokeRoundedRect(-w / 2, -h / 2, w, h, 12);
+    // đuôi chỉ xuống phía người nói
+    const tx = this.tailSide === 'left' ? -w / 4 : w / 4;
+    this.g.fillTriangle(tx - 10, h / 2 - 1, tx + 10, h / 2 - 1, tx, h / 2 + 16);
+    this.g.lineStyle(0, 0, 0);
+
+    this.setVisible(true);
+    this.setScale(0.4);
+    this.scene.tweens.add({ targets: this, scale: 1, duration: 220, ease: 'Back.easeOut' });
+
+    this.hideTimer = this.scene.time.delayedCall(2600, () => {
+      this.scene.tweens.add({
+        targets: this,
+        alpha: 0,
+        duration: 300,
+        onComplete: () => this.setVisible(false).setAlpha(1),
+      });
+    });
+  }
+}
+
 /** 1 lá bài trên tay: khung + cost + tên + dải màu content type. */
 export class CardView extends Phaser.GameObjects.Container {
   static readonly W = 140;
