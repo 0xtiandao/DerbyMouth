@@ -33,7 +33,8 @@ import type { QteKey } from '../core/TrashTalkQTE';
 import { resolveNpcAnswer, shuffledAnswers } from '../core/quiz';
 import { RoastBuffer } from '../api';
 import { cardsByStyle } from '../data/cards';
-import { TEAMS } from '../data/teams';
+import { TEAMS, teamById } from '../data/teams';
+import { loadProfile } from '../profile';
 import { SCENES } from './keys';
 import { addText, setupView } from './ui';
 import {
@@ -114,8 +115,10 @@ export class BattleScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // ----- state từ core (đội ngẫu nhiên 2 bên — profile chọn đội thật ở Phase 4) -----
-    const [teamPlayer, teamOpp] = Phaser.Utils.Array.Shuffle([...TEAMS]).slice(0, 2);
+    // ----- state từ core. Đội player lấy từ profile (Phase 4), NPC random đội khác -----
+    const pool = Phaser.Utils.Array.Shuffle([...TEAMS]);
+    const teamPlayer = teamById(loadProfile().teamId ?? '') ?? pool[0];
+    const teamOpp = pool.find((t) => t.id !== teamPlayer.id)!;
     this.player = createCombatant(this.playerStyle, teamPlayer, now);
     this.opponent = createCombatant(Phaser.Utils.Array.GetRandom(ALL_STYLES), teamOpp, now);
     this.inspiration = {

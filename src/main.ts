@@ -5,6 +5,7 @@ import Phaser from 'phaser';
 import { RENDER_SCALE, VIEW } from './core/view';
 import { BootScene } from './scenes/BootScene';
 import { MenuScene } from './scenes/MenuScene';
+import { ProfileScene } from './scenes/ProfileScene';
 import { StyleSelectScene } from './scenes/StyleSelectScene';
 import { BattleScene } from './scenes/BattleScene';
 import { ResultScene } from './scenes/ResultScene';
@@ -23,5 +24,5 @@ new Phaser.Game({
     width: VIEW.W * RENDER_SCALE,
     height: VIEW.H * RENDER_SCALE,
   },
-  scene: [BootScene, MenuScene, StyleSelectScene, BattleScene, ResultScene],
+  scene: [BootScene, MenuScene, ProfileScene, StyleSelectScene, BattleScene, ResultScene],
 });

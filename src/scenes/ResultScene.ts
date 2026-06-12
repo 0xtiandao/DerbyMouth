@@ -3,6 +3,8 @@ import Phaser from 'phaser';
 import type { ResultSceneData } from '../types';
 import { VIEW } from '../core/view';
 import { recordMatch } from '../stats';
+import { postMatchResult } from '../profile';
+import { loadSession } from '../wallet';
 import { SCENES } from './keys';
 import { addText, makeTextButton, setupView } from './ui';
 
@@ -22,6 +24,10 @@ export class ResultScene extends Phaser.Scene {
   create() {
     setupView(this);
     const stats = recordMatch(this.won); // ghi localStorage 1 lần mỗi trận
+
+    // có wallet session → đẩy kết quả lên D1 (stats on-record, fire-and-forget)
+    const session = loadSession();
+    if (session) void postMatchResult(session, this.won, this.summary?.quizStumped ?? 0);
 
     addText(this, VIEW.W / 2, VIEW.H * 0.22, this.won ? 'YOU WIN' : 'YOU LOSE', {
       fontSize: '84px',

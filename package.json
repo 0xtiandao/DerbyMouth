@@ -12,7 +12,9 @@
     "worker:check": "tsc -p worker --noEmit"
   },
   "dependencies": {
-    "phaser": "^3.87.0"
+    "peerjs": "^1.5.5",
+    "phaser": "^3.87.0",
+    "viem": "^2.52.2"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

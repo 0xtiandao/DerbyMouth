@@ -2,6 +2,7 @@
 export const SCENES = {
   BOOT: 'boot',
   MENU: 'menu',
+  PROFILE: 'profile',
   STYLE_SELECT: 'styleselect',
   BATTLE: 'battle',
   RESULT: 'result',

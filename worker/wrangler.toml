@@ -8,3 +8,10 @@ compatibility_date = "2025-06-01"
 [[kv_namespaces]]
 binding = "CACHE"
 id = "LOCAL_PLACEHOLDER_REPLACE_ON_DEPLOY"
+
+# Profile + stats (Phase 4). Local dev tự tạo SQLite; deploy: `wrangler d1 create derbymouth`
+# rồi thay database_id.
+[[d1_databases]]
+binding = "DB"
+database_name = "derbymouth"
+database_id = "LOCAL_PLACEHOLDER_REPLACE_ON_DEPLOY"

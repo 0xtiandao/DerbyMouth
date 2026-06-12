@@ -7,7 +7,7 @@ import { pickQuizFor } from './core/quiz';
 
 // Local dev: worker chạy riêng cổng 8787 (`npm run worker:dev`).
 // Deploy (Phase 5): cùng origin, route /api/* → worker.
-const API_BASE =
+export const API_BASE =
   typeof location !== 'undefined' && ['localhost', '127.0.0.1'].includes(location.hostname)
     ? 'http://127.0.0.1:8787'
     : '';

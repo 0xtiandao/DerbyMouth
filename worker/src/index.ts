@@ -7,6 +7,13 @@ import { FALLBACK_ROASTS, FALLBACK_TRASHTALK, SAMPLE_QUIZ } from '../../src/data
 import type { Env } from './env';
 import { callGemini } from './ai';
 import { buildQuizPrompt, buildRoastPrompt, buildTrashTalkPrompt } from './prompts';
+import {
+  handleAuthNonce,
+  handleAuthVerify,
+  handleProfileGet,
+  handleProfileResult,
+  handleProfileSave,
+} from './profile';
 
 const CONTENT_TYPES: ContentType[] = ['rational', 'emotional', 'intimidation', 'fanshaming'];
 
@@ -21,8 +28,8 @@ const RATE_LIMIT_PER_MIN = 30;
 
 const CORS_HEADERS: Record<string, string> = {
   'access-control-allow-origin': '*', // MVP local; deploy thật: giới hạn origin Pages
-  'access-control-allow-methods': 'POST, OPTIONS',
-  'access-control-allow-headers': 'content-type',
+  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-headers': 'content-type, authorization',
 };
 
 function json(body: unknown, status = 200): Response {
@@ -197,11 +204,22 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
-    if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
 
     if (await isRateLimited(request, env)) return json({ error: 'rate_limited' }, 429);
 
     const path = new URL(request.url).pathname;
+
+    // ----- Phase 4: auth + profile (D1) -----
+    if (path === '/api/profile' && request.method === 'GET') {
+      return handleProfileGet(request, env, CORS_HEADERS);
+    }
+    if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
+    if (path === '/api/auth/nonce') return handleAuthNonce(request, env, CORS_HEADERS);
+    if (path === '/api/auth/verify') return handleAuthVerify(request, env, CORS_HEADERS);
+    if (path === '/api/profile') return handleProfileSave(request, env, CORS_HEADERS);
+    if (path === '/api/profile/result') return handleProfileResult(request, env, CORS_HEADERS);
+
+    // ----- Phase 2: AI proxy -----
     if (path === '/api/roast/batch') return handleRoastBatch(request, env);
     if (path === '/api/trashtalk/batch') return handleTrashTalkBatch(request, env);
     if (path === '/api/quiz') return handleQuiz(request, env);
