@@ -26,8 +26,16 @@ export function createCombatant(style: Style, team: Team, now = 0): CombatantSta
     shields: 0,
     marks: [],
     silencedUntil: 0,
+    costUpValue: 0,
+    costUpUntil: 0,
+    nextCardBuffPct: 0,
     team,
   };
+}
+
+/** Cost thực của card (F4 History Lesson: cost +value trong thời gian hiệu lực). */
+export function effectiveCost(card: CardDef, state: CombatantState, now: number): number {
+  return card.cost + (now < state.costUpUntil ? state.costUpValue : 0);
 }
 
 /** Style RPS: attacker khắc defender? (Rebuttal > Filibuster > Bluster > Provocation > Rebuttal) */
@@ -93,6 +101,11 @@ export function computeDamage(
   let comboMult = comboMultiplier(comboLevel);
 
   let base = card.baseDmg;
+  // B2 Net Spend Flex: buff one-shot cho card kế — gộp vào base để giữ invariant breakdown.
+  // resolveCardPlay tiêu thụ buff sau khi tính.
+  if (attacker.nextCardBuffPct > 0) {
+    base = Math.round(base * (1 + attacker.nextCardBuffPct / 100));
+  }
   for (const fx of card.effects) {
     // counterBonus (R1): cộng vào base TRƯỚC khi nhân — thưởng counter play đậm hơn
     if (fx.kind === 'counterBonus' && countered) base += fx.value ?? 0;
@@ -165,6 +178,7 @@ export function resolveCardPlay(
   now: number,
 ): DamageBreakdown & { mfLoss: number; healed: number } {
   const breakdown = computeDamage(card, attacker, defender, now);
+  attacker.nextCardBuffPct = 0; // B2 là buff one-shot — dùng xong là hết
   registerCardPlayed(attacker, card, breakdown.comboLevel, now);
   const { mfLoss } = applyDamage(defender, breakdown.final);
 

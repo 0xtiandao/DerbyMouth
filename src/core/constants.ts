@@ -62,6 +62,9 @@ export const BALANCE = {
   NPC_STYLE_SWITCH_MIN_MS: 20000,
   NPC_STYLE_SWITCH_MAX_MS: 30000,
   NPC_POOR_RETRY_MS: 1000,      // nghèo Inspiration → thử chơi lại sau
+  // Brain v2 (Phase 3) — không 100% để NPC vẫn "người", đọc bài được nhưng không robot
+  NPC_COUNTER_PICK_CHANCE: 0.7, // % ưu tiên chọn card khắc content player vừa đánh
+  NPC_SMART_SWITCH_CHANCE: 0.7, // % switch sang style khắc style player
 
 } as const;
 

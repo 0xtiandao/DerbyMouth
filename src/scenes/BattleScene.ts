@@ -13,13 +13,14 @@ import type {
   Side,
   Style,
 } from '../types';
-import { BALANCE, CONTENT_COLORS, STYLE_LABELS } from '../core/constants';
+import { BALANCE, CONTENT_COLORS, CONTENT_LABELS, STYLE_LABELS } from '../core/constants';
 import { VIEW } from '../core/view';
 import {
   applyDamage,
   applyHeal,
   applySilence,
   createCombatant,
+  effectiveCost,
   isSilenced,
   resolveCardPlay,
 } from '../core/CombatEngine';
@@ -70,6 +71,8 @@ export class BattleScene extends Phaser.Scene {
   private roastApi!: Record<Side, RoastBuffer>;
   private beer!: BeerChannel;
   private beerBtn!: BeerButton;
+  private intentBadge: Phaser.GameObjects.Container | null = null; // R2 revealNext
+  private matchSummary = { dmgDealt: 0, biggestHit: 0, quizStumped: 0 };
 
   private mfBarPlayer!: MfBar;
   private mfBarOpp!: MfBar;
@@ -184,8 +187,10 @@ export class BattleScene extends Phaser.Scene {
     // ----- Banter log: lịch sử hội thoại kiểu chat, bên phải dưới timer -----
     this.banterLog = new BanterLog(this, 920, 72, 330, 470);
 
-    // ----- NPC brain v1 (task 1.7) -----
-    this.npcBrain = new NpcBrain(this.opponent, now);
+    // ----- NPC brain v2 (Phase 3): đọc bài player để counter/switch -----
+    this.npcBrain = new NpcBrain(this.opponent, this.player, now);
+    this.intentBadge = null;
+    this.matchSummary = { dmgDealt: 0, biggestHit: 0, quizStumped: 0 };
 
     // ----- Trash Talk QTE (task 2.1) -----
     this.qte = new TrashTalkQTE(this.opponent, now);
@@ -291,7 +296,11 @@ export class BattleScene extends Phaser.Scene {
 
     this.handViews.forEach((view, i) => {
       const card = this.hand[i];
-      if (card) view.setAffordable(this.inspiration.player.canAfford(card.cost));
+      if (card) {
+        const cost = effectiveCost(card, this.player, now);
+        view.setAffordable(this.inspiration.player.canAfford(cost));
+        view.refreshCost(cost, cost > card.cost);
+      }
     });
 
     this.checkMatchEnd();
@@ -335,8 +344,8 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
-    // 1) check + trừ Inspiration. Thiếu → rung lá, không mất gì.
-    if (!this.inspiration.player.spend(card.cost)) {
+    // 1) check + trừ Inspiration (cost thực — F4 costUp có thể đội giá). Thiếu → rung lá.
+    if (!this.inspiration.player.spend(effectiveCost(card, this.player, now))) {
       this.shakeCard(this.handViews[slot]);
       return;
     }
@@ -361,6 +370,8 @@ export class BattleScene extends Phaser.Scene {
     if (result.healed > 0) {
       this.floatText(420, 470, `+${result.healed}`, '#22c55e', 300, '24px');
     }
+    this.matchSummary.dmgDealt += result.mfLoss;
+    if (result.final > this.matchSummary.biggestHit) this.matchSummary.biggestHit = result.final;
 
     // 4) effect tức thì core đã hỗ trợ (silence/recover/drain).
     //    Còn lại: shield/mark/slowRegen/costUp/buffNext → Phase 3; prompt/quiz → Phase 2.
@@ -377,7 +388,8 @@ export class BattleScene extends Phaser.Scene {
 
   /** NPC chơi card (task 1.7): bubble phải + trừ MF player — cùng đường core với player. */
   private npcPlay(card: CardDef, now: number) {
-    if (!this.inspiration.opponent.spend(card.cost)) return; // brain đọc state cũ — bỏ lượt
+    if (!this.inspiration.opponent.spend(effectiveCost(card, this.opponent, now))) return;
+    this.clearIntentBadge(); // ý định đã thành đòn thật → badge reveal hết hiệu lực
     const line = this.pickRoast(card.content, 'opponent');
     this.npcBubble.show(line, CONTENT_COLORS[card.content]);
     this.banterLog.push({
@@ -503,6 +515,7 @@ export class BattleScene extends Phaser.Scene {
 
     // trash talk là free damage: không tốn Inspiration, không đụng combo
     const { mfLoss } = applyDamage(this.opponent, dmg);
+    this.matchSummary.dmgDealt += mfLoss;
     this.floatText(HIT_POS.opponent.x + Phaser.Math.Between(-50, 50), HIT_POS.opponent.y, `-${mfLoss}`, '#fddb00', 0, '36px');
 
     if (kind === 'recover') {
@@ -558,6 +571,8 @@ export class BattleScene extends Phaser.Scene {
           // NPC sai → damage lớn + badge "fan nửa mùa" + mark (nhận thêm dmg)
           // + Crowd Lifesteal: nó quê = mày sướng → hồi máu
           const { mfLoss } = applyDamage(this.opponent, bonusDmg);
+          this.matchSummary.dmgDealt += mfLoss;
+          this.matchSummary.quizStumped++;
           this.floatText(HIT_POS.opponent.x, HIT_POS.opponent.y, `-${mfLoss}`, '#22c55e', 0, '36px');
           const healed = applyHeal(this.player, BALANCE.QUIZ_WRONG_HEAL);
           if (healed > 0) this.floatText(420, 470, `+${healed}`, '#22c55e', 300, '24px');
@@ -572,6 +587,34 @@ export class BattleScene extends Phaser.Scene {
       },
       onDone: () => {},
     });
+  }
+
+  /** R2 Fact Check: hiện content type card NPC ĐỊNH đánh kế tiếp (tới khi NPC đánh). */
+  private showNpcIntent() {
+    const intent = this.npcBrain.nextIntent;
+    if (!intent) {
+      this.floatText(NPC_POS.x, NPC_POS.y - 80, 'NO READ', '#9ca3af', 120, '20px');
+      return;
+    }
+    this.clearIntentBadge();
+    const label = addText(this, 0, 0, `👁 NEXT: ${CONTENT_LABELS[intent.content]}`, {
+      fontSize: '14px',
+      color: '#1a120b',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const bg = this.add
+      .rectangle(0, 0, label.width + 18, 26, CONTENT_COLORS[intent.content], 1)
+      .setStrokeStyle(2, 0xffffff, 0.6);
+    this.intentBadge = this.add
+      .container(NPC_POS.x + 150, NPC_POS.y - 40, [bg, label])
+      .setDepth(6)
+      .setScale(0);
+    this.tweens.add({ targets: this.intentBadge, scale: 1, duration: 180, ease: 'Back.easeOut' });
+  }
+
+  private clearIntentBadge() {
+    this.intentBadge?.destroy();
+    this.intentBadge = null;
   }
 
   /** Badge nhục trên đầu NPC, tự biến mất sau durationMs. */
@@ -655,8 +698,54 @@ export class BattleScene extends Phaser.Scene {
           this.runQuiz(quiz, fx.value ?? BALANCE.QUIZ_WRONG_BONUS_DMG);
           break;
         }
+        // ===== Phase 3: các effect còn lại =====
+        case 'shield': { // F2 Wall of Text — buff BẢN THÂN: chặn dmg đòn kế nhận vào
+          const self = attacker === 'player' ? this.player : this.opponent;
+          self.shields += fx.value ?? 0;
+          const p = this.fxPos(attacker);
+          this.floatText(p.x, p.y, `SHIELD ${fx.value}`, '#60a5fa', 120, '20px');
+          break;
+        }
+        case 'mark': { // P2 Plastic Fan Alert — victim nhận thêm % dmg
+          victimState.marks.push({ value: fx.value ?? 0, expiresAt: now + (fx.durationMs ?? 0) });
+          const p = HIT_POS[victim];
+          this.floatText(p.x, p.y + 110, `MARKED +${fx.value}%`, '#f97316', 120, '20px');
+          break;
+        }
+        case 'slowRegen': { // F1 Yap Storm — victim regen Inspiration chậm
+          this.inspiration[victim].applySlowRegen(fx.value ?? 0, fx.durationMs ?? 0, now);
+          const p = this.fxPos(victim);
+          this.floatText(p.x, p.y, `REGEN -${fx.value}%`, '#b48cff', 120, '18px');
+          break;
+        }
+        case 'costUp': { // F4 History Lesson — card victim cost +value
+          victimState.costUpValue = fx.value ?? 0;
+          victimState.costUpUntil = now + (fx.durationMs ?? 0);
+          const p = this.fxPos(victim);
+          this.floatText(p.x, p.y, `COST +${fx.value}`, '#b48cff', 120, '18px');
+          break;
+        }
+        case 'buffNext': { // B2 Net Spend Flex — card kế của MÌNH +% dmg (one-shot)
+          const self = attacker === 'player' ? this.player : this.opponent;
+          self.nextCardBuffPct = fx.value ?? 0;
+          const p = this.fxPos(attacker);
+          this.floatText(p.x, p.y, `NEXT +${fx.value}%`, '#fddb00', 120, '18px');
+          break;
+        }
+        case 'switchCooldownDown': { // P4 Bait & Switch — giảm cooldown switch của MÌNH
+          const self = attacker === 'player' ? this.player : this.opponent;
+          self.styleSwitchReadyAt = Math.max(now, self.styleSwitchReadyAt - (fx.value ?? 0));
+          const p = this.fxPos(attacker);
+          this.floatText(p.x, p.y, `SWITCH -${Math.round((fx.value ?? 0) / 1000)}s`, '#fddb00', 120, '18px');
+          break;
+        }
+        case 'revealNext': { // R2 Fact Check — PVE: lộ content type card NPC ĐỊNH đánh
+          if (attacker !== 'player') break;
+          this.showNpcIntent();
+          break;
+        }
         default:
-          break; // các effect khác xử lý ở Phase 2/3 theo roadmap
+          break;
       }
     }
   }
@@ -722,7 +811,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private end(won: boolean) {
-    const data: ResultSceneData = { won };
+    const data: ResultSceneData = { won, summary: { ...this.matchSummary } };
     this.scene.start(SCENES.RESULT, data);
   }
 }

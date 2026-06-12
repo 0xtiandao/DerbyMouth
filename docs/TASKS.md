@@ -211,10 +211,26 @@ Còn lại cho deploy (Phase 5): KV namespace thật + wrangler secret + siết 
   - Test tay: sặc tự nhiên (-50 đòn → phạt -10 = 20% ✓, mất heal, mất lượt);
     uống trọn +130 (heal 135 cap vì chỉ thiếu 130 ✓) MF đầy lại; chặn card khi uống ✓.
 
-## PHASE 3 — Polish PVE
-- [ ] Mark/debuff effects còn lại trong cards.ts (F1 slow regen, F2 shield, F4 cost+1, B2 buff next, P2 mark...)
-- [ ] NPC brain v2: ưu tiên counter content type player vừa đánh, switch style có logic
-- [ ] Reward screen + local stats (localStorage)
+## PHASE 3 — Polish PVE ✅ (2026-06-12)
+- [x] Mark/debuff effects còn lại trong cards.ts (F1 slow regen, F2 shield, F4 cost+1, B2 buff next, P2 mark...)
+- [x] NPC brain v2: ưu tiên counter content type player vừa đánh, switch style có logic
+- [x] Reward screen + local stats (localStorage)
+- Ghi chú — quyết định thiết kế:
+  - Effects: F1 slowRegen (interval / (1-pct/100) trong InspirationSystem), F2 shield (buff bản
+    thân, cộng vào state.shields có sẵn), F4 costUp (effectiveCost trong core — áp cả khi spend,
+    hiển thị cost ĐỎ trên CardView, và NPC brain cũng bị), B2 buffNext (one-shot, gộp vào base
+    giữ invariant breakdown, tiêu thụ trong resolveCardPlay), P2 mark (dùng marks có sẵn),
+    P4 switchCooldownDown (trừ thẳng styleSwitchReadyAt), R2 revealNext (badge "👁 NEXT: <content>"
+    cạnh NPC, biến mất khi NPC đánh).
+  - NpcBrain v2: nhận enemy state; giữ "Ý ĐỊNH" card kế (chọn trước → R2 lộ được);
+    70% ưu tiên card khắc content player vừa đánh (NPC_COUNTER_PICK_CHANCE);
+    switch: đang khắc player thì GIỮ style, không thì 70% chọn style khắc player
+    (NPC_SMART_SWITCH_CHANCE) — không 100% để NPC vẫn "người".
+  - Reward screen: MATCH SUMMARY (dmg dealt / biggest hit / quiz stumped — track trong
+    BattleScene, truyền qua ResultSceneData.summary) + lifetime stats localStorage
+    (src/stats.ts, key derbymouth.stats.v1, W/L/streak/best) — Phase 4 chuyển D1.
+  - Test: 179 pass (16 mới). Test tay: REGEN -30% / +3 INSP floats, reward screen 2 trận
+    liên tiếp streak 1→2 🔥 persist đúng.
 
 ## PHASE 4 — Account + Wallet + PVP
 - [ ] Profile: chọn đội (teams.ts), lưu D1; wallet auth (SIWS/SIWE) — chọn chain trước khi làm

@@ -354,7 +354,8 @@ const rngZero = () => 0; // between → min; chọn phần tử [0]
 // ---------- 21. Lịch chơi card 3-5s ----------
 {
   const npc = createCombatant('rebuttal', TEAM, NOW);
-  const brain = new NpcBrain(npc, NOW, rngZero);
+  const enemy = createCombatant('rebuttal', TEAM, NOW);
+  const brain = new NpcBrain(npc, enemy, NOW, rngZero);
 
   check('trước hạn không làm gì', brain.tick(NOW + BALANCE.NPC_PLAY_INTERVAL_MIN_MS - 1).length, 0);
 
@@ -372,7 +373,8 @@ const rngZero = () => 0; // between → min; chọn phần tử [0]
 {
   const npc = createCombatant('rebuttal', TEAM, NOW);
   npc.inspiration = 1; // pool rebuttal rẻ nhất cost 2 → không afford
-  const brain = new NpcBrain(npc, NOW, rngZero);
+  const enemy = createCombatant('rebuttal', TEAM, NOW);
+  const brain = new NpcBrain(npc, enemy, NOW, rngZero);
 
   const playAt = NOW + BALANCE.NPC_PLAY_INTERVAL_MIN_MS;
   check('nghèo → không play', brain.tick(playAt).length, 0);
@@ -387,7 +389,8 @@ const rngZero = () => 0; // between → min; chọn phần tử [0]
 // ---------- 23. Silence → không nói, hết câm nói liền ----------
 {
   const npc = createCombatant('rebuttal', TEAM, NOW);
-  const brain = new NpcBrain(npc, NOW, rngZero);
+  const enemy = createCombatant('rebuttal', TEAM, NOW);
+  const brain = new NpcBrain(npc, enemy, NOW, rngZero);
   const playAt = NOW + BALANCE.NPC_PLAY_INTERVAL_MIN_MS;
 
   applySilence(npc, 2000, playAt - 100);
@@ -401,7 +404,8 @@ const rngZero = () => 0; // between → min; chọn phần tử [0]
 // ---------- 24. Switch style ngẫu nhiên 20-30s ----------
 {
   const npc = createCombatant('rebuttal', TEAM, NOW);
-  const brain = new NpcBrain(npc, NOW, rngZero);
+  const enemy = createCombatant('rebuttal', TEAM, NOW);
+  const brain = new NpcBrain(npc, enemy, NOW, rngZero);
   const switchAt = NOW + BALANCE.NPC_STYLE_SWITCH_MIN_MS;
 
   // tick đúng hạn switch: quá hạn play từ lâu → cả switch + play trong 1 tick
@@ -417,7 +421,8 @@ const rngZero = () => 0; // between → min; chọn phần tử [0]
 // ---------- 25. Silence vẫn cho switch (câm ≠ không đổi thế) ----------
 {
   const npc = createCombatant('rebuttal', TEAM, NOW);
-  const brain = new NpcBrain(npc, NOW, rngZero);
+  const enemy = createCombatant('rebuttal', TEAM, NOW);
+  const brain = new NpcBrain(npc, enemy, NOW, rngZero);
   const switchAt = NOW + BALANCE.NPC_STYLE_SWITCH_MIN_MS;
   applySilence(npc, 5000, switchAt - 100);
   const actions = brain.tick(switchAt);
@@ -584,6 +589,84 @@ import { SAMPLE_QUIZ } from '../data/fallbackRoasts';
   check('đủ 4 đáp án', answers.length, 4);
   check('chứa đáp án đúng', answers.includes(q.correct), true);
   check('chứa đủ nhiễu', q.wrong.every((w) => answers.includes(w)), true);
+}
+
+// ============================================================
+// Phase 3 — NpcBrain v2 + effects còn lại
+// ============================================================
+import { CONTENT_COUNTERS } from './constants';
+import { effectiveCost } from './CombatEngine';
+
+// ---------- 42. v2: ưu tiên card khắc content player vừa đánh ----------
+{
+  const npc = createCombatant('rebuttal', TEAM, NOW);
+  const enemy = createCombatant('bluster', TEAM, NOW);
+  registerCardPlayed(enemy, card('B1'), 1, NOW); // player vừa đánh intimidation
+  const brain = new NpcBrain(npc, enemy, NOW, rngZero);
+
+  check('intent counter ngay từ đầu', brain.nextIntent?.content, 'rational'); // rational khắc intimidation
+  const actions = brain.tick(NOW + BALANCE.NPC_PLAY_INTERVAL_MIN_MS);
+  check('có play', actions[0]?.kind, 'play');
+  if (actions[0]?.kind === 'play') {
+    check('card khắc đúng content', CONTENT_COUNTERS[actions[0].card.content], 'intimidation');
+  }
+}
+
+// ---------- 43. v2: switch sang style khắc style player ----------
+{
+  const npc = createCombatant('bluster', TEAM, NOW);
+  const enemy = createCombatant('rebuttal', TEAM, NOW); // bluster KHÔNG khắc rebuttal
+  const brain = new NpcBrain(npc, enemy, NOW, rngZero);
+  const actions = brain.tick(NOW + BALANCE.NPC_STYLE_SWITCH_MIN_MS);
+  const sw = actions.find((a) => a.kind === 'switch');
+  check('có switch', sw !== undefined, true);
+  if (sw?.kind === 'switch') check('switch sang style khắc player', sw.style, 'provocation');
+}
+
+// ---------- 44. v2: đang khắc player → GIỮ style ----------
+{
+  const npc = createCombatant('rebuttal', TEAM, NOW);
+  const enemy = createCombatant('filibuster', TEAM, NOW); // rebuttal đang khắc filibuster
+  const brain = new NpcBrain(npc, enemy, NOW, rngZero);
+  const actions = brain.tick(NOW + BALANCE.NPC_STYLE_SWITCH_MIN_MS);
+  check('không switch khi đang khắc', actions.some((a) => a.kind === 'switch'), false);
+}
+
+// ---------- 45. effectiveCost (F4 costUp) ----------
+{
+  const st = createCombatant('rebuttal', TEAM, NOW);
+  const c = card('R1'); // cost 2
+  check('cost thường', effectiveCost(c, st, NOW), 2);
+  st.costUpValue = 1;
+  st.costUpUntil = NOW + 8000;
+  check('costUp +1', effectiveCost(c, st, NOW + 1000), 3);
+  check('hết hạn về thường', effectiveCost(c, st, NOW + 8000), 2);
+}
+
+// ---------- 46. buffNext (B2): one-shot +% vào base ----------
+{
+  const atk = createCombatant('rebuttal', TEAM, NOW);
+  const def = createCombatant('rebuttal', TEAM, NOW);
+  atk.nextCardBuffPct = 20;
+  const r = resolveCardPlay(card('B5'), atk, def, NOW); // 50 → 60
+  check('buffNext +20% vào base', r.base, 60);
+  check('final 60', r.final, 60);
+  check('buff tiêu thụ sau đòn', atk.nextCardBuffPct, 0);
+  const r2 = resolveCardPlay(card('B1'), atk, def, NOW + 1000);
+  check('card sau không còn buff', r2.base, 130);
+}
+
+// ---------- 47. slowRegen (F1): interval giãn theo % ----------
+{
+  const st = createCombatant('rebuttal', TEAM, NOW);
+  const insp = new InspirationSystem(st, NOW);
+  insp.spend(5);
+  insp.applySlowRegen(30, 60000, NOW);
+  // mốc đầu đặt từ constructor (trước khi slow) → vẫn +1 tại NOW+2000
+  check('mốc cũ vẫn +1', insp.tick(NOW + BALANCE.INSPIRATION_REGEN_MS), 1);
+  // mốc kế giãn: 2000 / 0.7 ≈ 2857ms
+  check('slow: chưa tới mốc giãn', insp.tick(NOW + 4857), 0);
+  check('slow: +1 ở mốc giãn', insp.tick(NOW + 4858), 1);
 }
 
 // ============================================================

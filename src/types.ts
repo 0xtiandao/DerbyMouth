@@ -60,6 +60,9 @@ export interface CombatantState {
   shields: number;        // dmg chặn được còn lại
   marks: { value: number; expiresAt: number }[];
   silencedUntil: number;
+  costUpValue: number;    // F4 History Lesson: card cost +value...
+  costUpUntil: number;    // ...tới timestamp này
+  nextCardBuffPct: number;// B2 Net Spend Flex: card kế +% dmg (one-shot)
   team: Team;
 }
 
@@ -95,6 +98,12 @@ export interface BattleSceneData {
 /** Data truyền vào ResultScene khi scene.start */
 export interface ResultSceneData {
   won: boolean;
+  /** Tóm tắt trận cho reward screen (Phase 3) */
+  summary?: {
+    dmgDealt: number;
+    biggestHit: number;
+    quizStumped: number; // số lần làm NPC quê vì quiz
+  };
 }
 
 export interface QuizQuestion {

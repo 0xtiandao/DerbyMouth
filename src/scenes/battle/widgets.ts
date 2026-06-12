@@ -466,4 +466,10 @@ export class CardView extends Phaser.GameObjects.Container {
   setAffordable(ok: boolean) {
     this.setAlpha(ok ? 1 : 0.4);
   }
+
+  /** Cost thực tế (F4 costUp làm tăng) — đỏ khi đang bị đội giá. */
+  refreshCost(cost: number, raised: boolean) {
+    this.costText.setText(String(cost));
+    this.costText.setColor(raised ? '#ef4444' : '#9ecbff');
+  }
 }
