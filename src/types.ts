@@ -93,6 +93,13 @@ export type Side = 'player' | 'opponent';
 /** Data truyền vào BattleScene khi scene.start */
 export interface BattleSceneData {
   playerStyle: Style;
+  /** 'pvp' = đối thủ thật qua PeerJS (link lấy từ pvp/PvpLink singleton) */
+  mode?: 'pve' | 'pvp';
+}
+
+/** Data truyền vào StyleSelectScene */
+export interface StyleSelectSceneData {
+  mode?: 'pve' | 'pvp';
 }
 
 /** Data truyền vào ResultScene khi scene.start */

@@ -107,4 +107,80 @@ export class QuizPanel extends Phaser.GameObjects.Container {
     this.parts = [];
     this.items = [];
   }
+
+  /** PVP (Phase 4.2): MÌNH bị hỏi — tự bấm đáp án trong deadlineMs, hết giờ = trả lời sai.
+   *  onAnswer(answer | null khi timeout) gọi đúng 1 lần, panel tự reveal màu rồi đóng. */
+  runAnswer(data: {
+    question: string;
+    answers: string[];
+    correctAnswer: string;
+    deadlineMs: number;
+    onAnswer: (answer: string | null) => void;
+  }) {
+    this.clearParts();
+    const scene = this.scene;
+    let answered = false;
+
+    const qText = addText(scene, 0, -86, data.question, {
+      fontSize: '17px', color: '#fff8ee', fontStyle: 'bold', align: 'center',
+      wordWrap: { width: PANEL_W - 60 },
+    }).setOrigin(0.5);
+    const panelH = qText.height + 200;
+    const bg = scene.add
+      .rectangle(0, 0, PANEL_W, panelH, 0x1a1208, 0.97)
+      .setStrokeStyle(2, 0xef4444, 0.9); // viền đỏ — MÌNH đang bị quay
+    const status = addText(scene, 0, -panelH / 2 + 20, 'POP QUIZ — answer or eat damage!', {
+      fontSize: '12px', color: '#ef4444', fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const timerBar = scene.add.rectangle(0, panelH / 2 - 8, PANEL_W - 20, 6, 0xef4444).setOrigin(0.5);
+
+    const finish = (answer: string | null) => {
+      if (answered) return;
+      answered = true;
+      for (const it of this.items) {
+        it.bg.disableInteractive();
+        if (it.answer === data.correctAnswer) {
+          it.bg.setFillStyle(0x14532d, 1).setStrokeStyle(3, 0x22c55e, 1);
+        } else if (answer !== null && it.answer === answer) {
+          it.bg.setFillStyle(0x7f1d1d, 1).setStrokeStyle(3, 0xef4444, 1);
+        }
+      }
+      status.setText(answer === data.correctAnswer ? 'Correct!' : answer === null ? 'TIME UP!' : 'WRONG!');
+      data.onAnswer(answer);
+      scene.time.delayedCall(1400, () => {
+        this.setVisible(false);
+        this.clearParts();
+      });
+    };
+
+    this.items = data.answers.map((answer, i) => {
+      const col = i % 2 === 0 ? -1 : 1;
+      const row = i < 2 ? 0 : 1;
+      const x = col * (ANS_W / 2 + 10);
+      const y = 10 + row * (ANS_H + 14);
+      const itemBg = scene.add
+        .rectangle(x, y, ANS_W, ANS_H, 0x26201a, 0.97)
+        .setStrokeStyle(1.5, 0xffffff, 0.25);
+      const label = addText(scene, x, y, answer, {
+        fontSize: '14px', color: '#e8e2d8', align: 'center',
+        wordWrap: { width: ANS_W - 20 },
+      }).setOrigin(0.5);
+      itemBg.setInteractive({ useHandCursor: true });
+      itemBg.on('pointerover', () => itemBg.setFillStyle(0x3a3026, 0.97));
+      itemBg.on('pointerdown', () => finish(answer));
+      return { bg: itemBg, label, answer };
+    });
+
+    this.parts = [bg, qText, status, timerBar, ...this.items.flatMap((it) => [it.bg, it.label])];
+    this.add(this.parts);
+    this.setVisible(true);
+    this.setScale(0.85);
+    scene.tweens.add({ targets: this, scale: 1, duration: 180, ease: 'Back.easeOut' });
+
+    // thanh thời gian co dần — hết giờ = sai
+    scene.tweens.add({
+      targets: timerBar, scaleX: 0, duration: data.deadlineMs,
+      onComplete: () => finish(null),
+    });
+  }
 }

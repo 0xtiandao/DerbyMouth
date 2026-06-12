@@ -23,11 +23,15 @@ export class MenuScene extends Phaser.Scene {
       color: '#cccccc',
     }).setOrigin(0.5);
 
-    makeTextButton(this, VIEW.W / 2, VIEW.H * 0.55, 'PVE BATTLE', () => {
+    makeTextButton(this, VIEW.W / 2, VIEW.H * 0.52, 'PVE BATTLE', () => {
       this.scene.start(SCENES.STYLE_SELECT);
     });
 
-    makeTextButton(this, VIEW.W / 2, VIEW.H * 0.55 + 90, 'PROFILE', () => {
+    makeTextButton(this, VIEW.W / 2, VIEW.H * 0.52 + 84, 'PVP BATTLE', () => {
+      this.scene.start(SCENES.PVP_LOBBY);
+    });
+
+    makeTextButton(this, VIEW.W / 2, VIEW.H * 0.52 + 164, 'PROFILE', () => {
       this.scene.start(SCENES.PROFILE);
     }, { width: 220, height: 52, fontSize: '20px' });
   }

@@ -232,10 +232,33 @@ Còn lại cho deploy (Phase 5): KV namespace thật + wrangler secret + siết 
   - Test: 179 pass (16 mới). Test tay: REGEN -30% / +3 INSP floats, reward screen 2 trận
     liên tiếp streak 1→2 🔥 persist đúng.
 
-## PHASE 4 — Account + Wallet + PVP
-- [ ] Profile: chọn đội (teams.ts), lưu D1; wallet auth (SIWS/SIWE) — chọn chain trước khi làm
-- [ ] PeerJS room code, sync action, quiz PVP có timer trả lời thật
-- [ ] Lock action theo nhịp ngắn chống desync
+## PHASE 4 — Account + Wallet + PVP ✅ (2026-06-12, chain: EVM)
+- [x] Profile: chọn đội (teams.ts), lưu D1; wallet auth (SIWS/SIWE) — CHỌN EVM (MetaMask, SIWE-lite)
+- [x] PeerJS room code, sync action, quiz PVP có timer trả lời thật
+- [x] Lock action theo nhịp ngắn chống desync — đổi cách tiếp cận, xem ghi chú
+- Ghi chú 4.1 (profile + wallet):
+  - Worker: /api/auth/nonce → personal_sign → /api/auth/verify (viem verifyMessage, nonce 1 lần,
+    session token KV 7 ngày) → /api/profile GET/POST + /api/profile/result. D1 binding local
+    (bảng profiles, schema lazy CREATE IF NOT EXISTS). User ID = wallet address từ ngày đầu.
+  - Client: wallet.ts (chỉ sign, không transaction), profile.ts (localStorage cache + D1 sync),
+    ProfileScene (grid 14 đội + connect wallet + stats on-record), guest mode giữ nguyên.
+  - BattleScene dùng đội profile; ResultScene đẩy kết quả lên D1 khi có session.
+  - E2E: ký thật bằng test key (shim window.ethereum) → verify → D1 lưu team VIE → battle
+    hiện "Vietnam fan (you)". Deploy thật: `wrangler d1 create derbymouth` + thay database_id.
+- Ghi chú 4.2 (PVP):
+  - pvp/PvpLink.ts: PeerJS room code 5 chữ (id = derbymouth-<code>), hello (team) → style →
+    act/mf/quizAsk/quizAns/bye. Singleton giữ link qua scene.
+  - CHỐNG DESYNC: thay lockstep cứng bằng (1) bên ĐÁNH là nguồn sự thật cho damage — gửi
+    final/counter/combo + snapshot MF sau đòn, bên nhận áp đúng số; (2) heartbeat MF mỗi 2s;
+    (3) message xử lý theo thứ tự đến mỗi frame. Đơn giản hơn lockstep mà đủ chắc cho nhịp game.
+  - QTE prompt TỰ hoạt động trong PVP (registerCardPlayed đối thủ nuôi counter window + prompt).
+  - Quiz PVP: quizAsk → bên bị hỏi có QuizPanel.runAnswer (4 đáp án bấm thật + thanh
+    QUIZ_ANSWER_TIME_MS, hết giờ = sai) → quizAns → 2 bên áp kết quả đối xứng.
+  - Đối thủ thoát (bye/closed) → mình thắng. Trận xong link đóng (1 trận/1 kết nối).
+  - JOIN nhập code qua window.prompt (placeholder — Phase 5 làm UI nhập chữ).
+  - E2E 2 page thật qua PeerJS cloud: style sync ✓, đòn qua lại MF khớp từng số ✓ (fix bug
+    đội hello ≠ đội battle khi chưa có profile), drain Inspiration sync ✓, QTE prompt nổ ✓.
+  - CHƯA làm (để sau): Quick Match/matchmaking rivalry, betting điểm trash talk, reconnect.
 
 ## PHASE 5 — Art + Audio + Deploy
 - [ ] Thay placeholder bằng asset thật (docs/PLAN.md mục 6 có hướng dẫn tạo từng asset)

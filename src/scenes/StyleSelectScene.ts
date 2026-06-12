@@ -1,20 +1,30 @@
 // src/scenes/StyleSelectScene.ts — task 1.2: 4 style vòng tròn (như ảnh WWM), chọn 1 → BattleScene.
 import Phaser from 'phaser';
-import type { BattleSceneData, Style } from '../types';
+import type { BattleSceneData, Style, StyleSelectSceneData } from '../types';
 import { BALANCE, STYLE_COLORS, STYLE_COUNTERS, STYLE_LABELS, STYLE_TAGLINES } from '../core/constants';
 import { VIEW } from '../core/view';
+import { getActiveLink } from '../pvp/PvpLink';
 import { SCENES } from './keys';
 import { addText, setupView } from './ui';
 
 export class StyleSelectScene extends Phaser.Scene {
+  private mode: 'pve' | 'pvp' = 'pve';
+  private picked: Style | null = null;
+  private waitText: Phaser.GameObjects.Text | null = null;
+
   constructor() {
     super(SCENES.STYLE_SELECT);
+  }
+
+  init(data: StyleSelectSceneData) {
+    this.mode = data.mode ?? 'pve';
+    this.picked = null;
   }
 
   create() {
     setupView(this);
 
-    addText(this, VIEW.W / 2, 52, 'CHOOSE YOUR STYLE', {
+    addText(this, VIEW.W / 2, 52, this.mode === 'pvp' ? 'CHOOSE YOUR STYLE — PVP' : 'CHOOSE YOUR STYLE', {
       fontSize: '40px',
       color: '#fddb00',
       fontStyle: 'bold',
@@ -60,10 +70,7 @@ export class StyleSelectScene extends Phaser.Scene {
       circle.setInteractive({ useHandCursor: true });
       circle.on('pointerover', () => circle.setScale(1.08));
       circle.on('pointerout', () => circle.setScale(1));
-      circle.on('pointerdown', () => {
-        const data: BattleSceneData = { playerStyle: style };
-        this.scene.start(SCENES.BATTLE, data);
-      });
+      circle.on('pointerdown', () => this.pick(style));
     });
 
     const buffPct = Math.round((BALANCE.STYLE_BUFF - 1) * 100);
@@ -71,5 +78,39 @@ export class StyleSelectScene extends Phaser.Scene {
       fontSize: '15px',
       color: '#888888',
     }).setOrigin(0.5);
+  }
+
+  private pick(style: Style) {
+    if (this.picked) return; // PVP: chọn 1 lần, đợi đối thủ
+    if (this.mode === 'pve') {
+      const data: BattleSceneData = { playerStyle: style };
+      this.scene.start(SCENES.BATTLE, data);
+      return;
+    }
+
+    // PVP: gửi style của mình, cả 2 bên đủ style → vào trận
+    const link = getActiveLink();
+    if (!link || !link.connected) {
+      this.scene.start(SCENES.PVP_LOBBY);
+      return;
+    }
+    this.picked = style;
+    link.send({ t: 'style', style });
+    this.waitText = addText(this, VIEW.W / 2, VIEW.H - 60, 'Waiting for opponent to pick...', {
+      fontSize: '17px',
+      color: '#fddb00',
+    }).setOrigin(0.5);
+
+    const tryStart = () => {
+      if (this.picked && link.remoteStyle) {
+        link.setHandler(null);
+        const data: BattleSceneData = { playerStyle: this.picked, mode: 'pvp' };
+        this.scene.start(SCENES.BATTLE, data);
+      }
+    };
+    link.setHandler((m) => {
+      if (m.t === 'style') tryStart();
+    });
+    tryStart(); // đối thủ có thể đã chọn trước
   }
 }

@@ -22,6 +22,7 @@ import {
   createCombatant,
   effectiveCost,
   isSilenced,
+  registerCardPlayed,
   resolveCardPlay,
 } from '../core/CombatEngine';
 import { BeerChannel } from '../core/BeerChannel';
@@ -32,9 +33,11 @@ import { TrashTalkQTE } from '../core/TrashTalkQTE';
 import type { QteKey } from '../core/TrashTalkQTE';
 import { resolveNpcAnswer, shuffledAnswers } from '../core/quiz';
 import { RoastBuffer } from '../api';
-import { cardsByStyle } from '../data/cards';
+import { cardById, cardsByStyle } from '../data/cards';
 import { TEAMS, teamById } from '../data/teams';
 import { loadProfile } from '../profile';
+import { getActiveLink, setActiveLink } from '../pvp/PvpLink';
+import type { PvpLink, PvpMessage } from '../pvp/PvpLink';
 import { SCENES } from './keys';
 import { addText, setupView } from './ui';
 import {
@@ -60,6 +63,11 @@ const HIT_POS: Record<Side, { x: number; y: number }> = {
 
 export class BattleScene extends Phaser.Scene {
   private playerStyle: Style = 'rebuttal';
+  private mode: 'pve' | 'pvp' = 'pve';
+  private link: PvpLink | null = null;
+  private pvpQueue: PvpMessage[] = [];
+  private nextMfHeartbeatAt = 0;
+  private pendingAskBonus = 0; // quiz PVP: bonus dmg của câu mình vừa hỏi
 
   private player!: CombatantState;
   private opponent!: CombatantState;
@@ -85,7 +93,7 @@ export class BattleScene extends Phaser.Scene {
   private timerText!: Phaser.GameObjects.Text;
   private playerBubble!: SpeechBubble;
   private npcBubble!: SpeechBubble;
-  private npcBrain!: NpcBrain;
+  private npcBrain: NpcBrain | null = null; // chỉ PVE
   private banterLog!: BanterLog;
   private qte!: TrashTalkQTE;
   private qtePrompt!: QtePromptView;
@@ -101,11 +109,19 @@ export class BattleScene extends Phaser.Scene {
 
   init(data: BattleSceneData) {
     this.playerStyle = data.playerStyle ?? 'rebuttal';
+    this.mode = data.mode ?? 'pve';
   }
 
   create() {
     setupView(this);
     const now = this.time.now;
+
+    // PVP mất kết nối / vào thẳng không qua lobby → quay về lobby
+    this.link = this.mode === 'pvp' ? getActiveLink() : null;
+    if (this.mode === 'pvp' && (!this.link || !this.link.connected)) {
+      this.scene.start(SCENES.PVP_LOBBY);
+      return;
+    }
 
     // texture hạt particle dùng chung (placeholder — chấm tròn trắng, tint theo content)
     if (!this.textures.exists('spark')) {
@@ -115,12 +131,22 @@ export class BattleScene extends Phaser.Scene {
       g.destroy();
     }
 
-    // ----- state từ core. Đội player lấy từ profile (Phase 4), NPC random đội khác -----
+    // ----- state từ core. Đội player: PVP dùng ĐÚNG team đã gửi hello, PVE từ profile -----
     const pool = Phaser.Utils.Array.Shuffle([...TEAMS]);
-    const teamPlayer = teamById(loadProfile().teamId ?? '') ?? pool[0];
-    const teamOpp = pool.find((t) => t.id !== teamPlayer.id)!;
+    const teamPlayer =
+      (this.mode === 'pvp' && this.link ? teamById(this.link.myTeamId) : null) ??
+      teamById(loadProfile().teamId ?? '') ??
+      pool[0];
     this.player = createCombatant(this.playerStyle, teamPlayer, now);
-    this.opponent = createCombatant(Phaser.Utils.Array.GetRandom(ALL_STYLES), teamOpp, now);
+
+    if (this.mode === 'pvp' && this.link) {
+      // PVP: đội + style của đối thủ lấy từ handshake
+      const teamOpp = teamById(this.link.remoteTeamId ?? '') ?? pool.find((t) => t.id !== teamPlayer.id)!;
+      this.opponent = createCombatant(this.link.remoteStyle ?? 'bluster', teamOpp, now);
+    } else {
+      const teamOpp = pool.find((t) => t.id !== teamPlayer.id)!;
+      this.opponent = createCombatant(Phaser.Utils.Array.GetRandom(ALL_STYLES), teamOpp, now);
+    }
     this.inspiration = {
       player: new InspirationSystem(this.player, now),
       opponent: new InspirationSystem(this.opponent, now),
@@ -130,14 +156,15 @@ export class BattleScene extends Phaser.Scene {
     this.nextSuddenDrainAt = this.matchEndAt; // drain đầu tiên đúng lúc 0:00
     this.ending = false;
 
-    // AI buffer 2 chiều (task 2.4): nạp đầu trận, lấy 0ms, lỗi mạng → fallback
+    // AI buffer (task 2.4): nạp đầu trận, lấy 0ms, lỗi mạng → fallback.
+    // PVP: câu của đối thủ đến qua message (cả 2 thấy cùng text) — khỏi prime chiều ngược.
     this.roastApi = {
       player: new RoastBuffer(this.player.team, this.opponent.team),
       opponent: new RoastBuffer(this.opponent.team, this.player.team),
     };
     this.roastApi.player.primeRoasts();
-    this.roastApi.player.primeTrashTalkAndQuiz(); // QTE/quiz chỉ phía player
-    this.roastApi.opponent.primeRoasts();
+    this.roastApi.player.primeTrashTalkAndQuiz(); // QTE/quiz chỉ phía mình
+    if (this.mode === 'pve') this.roastApi.opponent.primeRoasts();
 
     // Hand đầu trận: 4 lá từ pool style đã chọn
     this.hand = Phaser.Utils.Array.Shuffle([...cardsByStyle(this.playerStyle)]).slice(
@@ -145,9 +172,9 @@ export class BattleScene extends Phaser.Scene {
       BALANCE.HAND_SIZE,
     );
 
-    // ----- NPC (trên) -----
+    // ----- Đối thủ (trên) -----
     this.styleOpp = new StyleIndicator(this, 56, 50);
-    addText(this, 40, 88, `${this.opponent.team.name} fan (NPC)`, {
+    addText(this, 40, 88, `${this.opponent.team.name} fan ${this.mode === 'pvp' ? '(P2)' : '(NPC)'}`, {
       fontSize: '15px',
       color: '#cccccc',
     }).setOrigin(0, 0.5);
@@ -190,10 +217,23 @@ export class BattleScene extends Phaser.Scene {
     // ----- Banter log: lịch sử hội thoại kiểu chat, bên phải dưới timer -----
     this.banterLog = new BanterLog(this, 920, 72, 330, 470);
 
-    // ----- NPC brain v2 (Phase 3): đọc bài player để counter/switch -----
-    this.npcBrain = new NpcBrain(this.opponent, this.player, now);
+    // ----- NPC brain v2 (chỉ PVE) / PVP: nhận action qua link -----
+    this.npcBrain = this.mode === 'pve' ? new NpcBrain(this.opponent, this.player, now) : null;
     this.intentBadge = null;
     this.matchSummary = { dmgDealt: 0, biggestHit: 0, quizStumped: 0 };
+    this.pvpQueue = [];
+    this.nextMfHeartbeatAt = now + 2000;
+    if (this.mode === 'pvp' && this.link) {
+      this.link.setHandler((m) => this.pvpQueue.push(m));
+      this.link.onStatus = (status) => {
+        // đối thủ thoát giữa trận → mình thắng
+        if ((status === 'closed' || status === 'error') && !this.ending) {
+          this.floatText(VIEW.W / 2, 380, 'OPPONENT LEFT', '#fddb00', 0, '32px');
+          this.ending = true;
+          this.time.delayedCall(1200, () => this.end(true));
+        }
+      };
+    }
 
     // ----- Trash Talk QTE (task 2.1) -----
     this.qte = new TrashTalkQTE(this.opponent, now);
@@ -213,6 +253,10 @@ export class BattleScene extends Phaser.Scene {
         ? { x: 170, y: 392 }
         : { x: NPC_POS.x, y: NPC_POS.y - 95 };
       this.floatText(pos.x, pos.y, `→ ${STYLE_LABELS[e.to]}`, '#ffffff', 0, '20px');
+      // PVP: switch của mình → báo đối thủ
+      if (e.side === 'player' && this.mode === 'pvp') {
+        this.link?.send({ t: 'act', clock: e.at, action: { kind: 'switch', style: e.to } });
+      }
     });
 
     // ----- Hand 4 card -----
@@ -246,10 +290,21 @@ export class BattleScene extends Phaser.Scene {
       channelProgress: this.beer.channelProgress(now),
     });
 
-    // NPC brain: thực thi quyết định (switch qua StyleSystem — tự enforce cooldown)
-    for (const action of this.npcBrain.tick(now)) {
-      if (action.kind === 'switch') this.styles.switchTo('opponent', action.style, now);
-      else this.npcPlay(action.card, now);
+    if (this.npcBrain) {
+      // PVE — NPC brain: thực thi quyết định (switch qua StyleSystem — tự enforce cooldown)
+      for (const action of this.npcBrain.tick(now)) {
+        if (action.kind === 'switch') this.styles.switchTo('opponent', action.style, now);
+        else this.npcPlay(action.card, now);
+      }
+    } else {
+      // PVP — xử lý action đối thủ theo thứ tự đến + heartbeat MF chống trôi
+      const pending = this.pvpQueue;
+      this.pvpQueue = [];
+      for (const m of pending) this.handlePvpMessage(m, now);
+      if (now >= this.nextMfHeartbeatAt) {
+        this.link?.send({ t: 'mf', mf: this.player.mf });
+        this.nextMfHeartbeatAt = now + 2000;
+      }
     }
 
     // Trash Talk QTE: state machine ở core, scene chỉ render
@@ -376,6 +431,19 @@ export class BattleScene extends Phaser.Scene {
     this.matchSummary.dmgDealt += result.mfLoss;
     if (result.final > this.matchSummary.biggestHit) this.matchSummary.biggestHit = result.final;
 
+    // PVP: bên đánh là nguồn sự thật cho damage — gửi kết quả + snapshot MF
+    if (this.mode === 'pvp') {
+      this.link?.send({
+        t: 'act',
+        clock: now,
+        action: {
+          kind: 'play', cardId: card.id, line,
+          final: result.final, countered: result.countered, comboLevel: result.comboLevel,
+          mfSelf: this.player.mf,
+        },
+      });
+    }
+
     // 4) effect tức thì core đã hỗ trợ (silence/recover/drain).
     //    Còn lại: shield/mark/slowRegen/costUp/buffNext → Phase 3; prompt/quiz → Phase 2.
     this.applyImmediateEffects(card, now, 'player');
@@ -421,6 +489,173 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.applyImmediateEffects(card, now, 'opponent');
+  }
+
+  // ================= Phase 4.2: PVP qua PeerJS =================
+
+  private handlePvpMessage(m: PvpMessage, now: number) {
+    switch (m.t) {
+      case 'act':
+        if (m.action.kind === 'play') this.remotePlay(m.action, now);
+        else if (m.action.kind === 'switch') {
+          // cooldown 2 máy có thể lệch nhẹ → switch fail thì ép style cho khớp
+          if (!this.styles.switchTo('opponent', m.action.style, now)) {
+            this.opponent.style = m.action.style;
+          }
+        } else if (m.action.kind === 'tt') this.remoteTrashTalk(m.action, now);
+        break;
+      case 'mf':
+        this.opponent.mf = Math.max(0, Math.min(this.opponent.mfMax, m.mf));
+        break;
+      case 'quizAsk':
+        this.answerPvpQuiz(m.quiz, m.bonus, now);
+        break;
+      case 'quizAns':
+        this.resolveAskedQuiz(m.correct, m.answer, now);
+        break;
+      case 'bye':
+        if (!this.ending) {
+          this.floatText(VIEW.W / 2, 380, 'OPPONENT LEFT', '#fddb00', 0, '32px');
+          this.ending = true;
+          this.time.delayedCall(1000, () => this.end(true));
+        }
+        break;
+      default:
+        break; // hello/style đã xử lý ở lobby/style select
+    }
+  }
+
+  /** Đối thủ thật đánh card — số liệu authoritative từ bên đánh, mình chỉ áp + render. */
+  private remotePlay(
+    action: { cardId: string; line: string; final: number; countered: boolean; comboLevel: number; mfSelf: number },
+    now: number,
+  ) {
+    const card = cardById(action.cardId);
+    if (!card) return;
+
+    this.npcBubble.show(action.line, CONTENT_COLORS[card.content]);
+    this.banterLog.push({
+      side: 'opponent',
+      name: `${this.opponent.team.name} fan`,
+      time: this.clockLabel(now),
+      line: action.line,
+      accent: CONTENT_COLORS[card.content],
+      avatarColor: this.opponent.team.color,
+    });
+    this.burstParticles(660, 190, CONTENT_COLORS[card.content]);
+
+    // ghi nhận cho counter window của MÌNH + combo hiển thị
+    registerCardPlayed(this.opponent, card, action.comboLevel, now);
+    const { mfLoss } = applyDamage(this.player, action.final);
+    this.showHitFeedback(
+      {
+        base: card.baseDmg, styleBuff: 1, contentCounter: 1, comboMult: 1, markBonus: 1,
+        final: action.final, countered: action.countered, comboLevel: action.comboLevel, mfLoss,
+      },
+      'player',
+    );
+
+    // sặc bia nếu đang uống (giống đòn NPC)
+    if (this.beer.interrupt()) {
+      const extra = Math.round((action.final * BALANCE.BEER_CHOKE_BONUS_PCT) / 100);
+      applyDamage(this.player, extra);
+      this.floatText(HIT_POS.player.x, HIT_POS.player.y - 42, 'CHOKED! 🍺', '#ef4444', 100, '28px');
+      this.cameras.main.shake(150, 0.006);
+    }
+
+    this.applyImmediateEffects(card, now, 'opponent');
+    this.opponent.mf = Math.max(0, Math.min(this.opponent.mfMax, action.mfSelf)); // lifesteal phía họ
+  }
+
+  private remoteTrashTalk(
+    action: { ttKind: 'heavy' | 'recover' | 'silence'; line: string; dmg: number; mfSelf: number },
+    now: number,
+  ) {
+    this.npcBubble.show(action.line, 0xfddb00);
+    this.banterLog.push({
+      side: 'opponent',
+      name: `${this.opponent.team.name} fan`,
+      time: this.clockLabel(now),
+      line: action.line,
+      accent: 0xfddb00,
+      avatarColor: this.opponent.team.color,
+    });
+    const { mfLoss } = applyDamage(this.player, action.dmg);
+    this.floatText(HIT_POS.player.x, HIT_POS.player.y, `-${mfLoss}`, '#fddb00', 0, '32px');
+    if (action.ttKind === 'silence') {
+      applySilence(this.player, BALANCE.TT_SILENCE_MS, now);
+      this.floatText(HIT_POS.player.x, HIT_POS.player.y + 40, 'SILENCED', '#9ca3af', 120, '20px');
+    }
+    this.opponent.mf = Math.max(0, Math.min(this.opponent.mfMax, action.mfSelf));
+  }
+
+  /** PVP: MÌNH bị hỏi quiz — panel trả lời thật với timer QUIZ_ANSWER_TIME_MS. */
+  private answerPvpQuiz(quiz: QuizQuestion, bonus: number, now: number) {
+    this.npcBubble.show(quiz.q, 0x22c55e);
+    this.banterLog.push({
+      side: 'opponent',
+      name: `${this.opponent.team.name} fan`,
+      time: this.clockLabel(now),
+      line: quiz.q,
+      accent: 0x22c55e,
+      avatarColor: this.opponent.team.color,
+    });
+    this.quizPanel.runAnswer({
+      question: quiz.q,
+      answers: shuffledAnswers(quiz),
+      correctAnswer: quiz.correct,
+      deadlineMs: BALANCE.QUIZ_ANSWER_TIME_MS,
+      onAnswer: (answer) => {
+        const correct = answer === quiz.correct;
+        this.link?.send({ t: 'quizAns', correct, answer: answer ?? '(time up)' });
+        const answerNow = this.time.now;
+        if (correct) {
+          // đúng → phản damage về người hỏi (copy đối thủ phía mình)
+          applyDamage(this.opponent, BALANCE.QUIZ_CORRECT_REFLECT_DMG);
+          this.floatText(HIT_POS.opponent.x, HIT_POS.opponent.y, `-${BALANCE.QUIZ_CORRECT_REFLECT_DMG} REFLECT`, '#22c55e', 0, '26px');
+        } else {
+          // sai/hết giờ → mình ăn damage + dính mark "fan nửa mùa"
+          const { mfLoss } = applyDamage(this.player, bonus);
+          this.player.marks.push({
+            value: BALANCE.QUIZ_BADGE_MARK_VALUE,
+            expiresAt: answerNow + BALANCE.QUIZ_BADGE_DURATION_MS,
+          });
+          this.floatText(HIT_POS.player.x, HIT_POS.player.y, `-${mfLoss}`, '#ef4444', 0, '32px');
+          this.floatText(HIT_POS.player.x, HIT_POS.player.y + 40, '🤡 PLASTIC FAN', '#fddb00', 150, '22px');
+          this.cameras.main.shake(130, 0.005);
+        }
+      },
+    });
+  }
+
+  /** PVP: đối thủ trả lời câu quiz mình hỏi — áp kết quả phía mình. */
+  private resolveAskedQuiz(correct: boolean, answer: string, now: number) {
+    this.banterLog.push({
+      side: 'opponent',
+      name: `${this.opponent.team.name} fan`,
+      time: this.clockLabel(now),
+      line: answer,
+      accent: correct ? 0x22c55e : 0xef4444,
+      avatarColor: this.opponent.team.color,
+    });
+    if (correct) {
+      const { mfLoss } = applyDamage(this.player, BALANCE.QUIZ_CORRECT_REFLECT_DMG);
+      this.floatText(HIT_POS.player.x, HIT_POS.player.y, `-${mfLoss} REFLECT`, '#ef4444', 0, '26px');
+    } else {
+      const { mfLoss } = applyDamage(this.opponent, this.pendingAskBonus || BALANCE.QUIZ_WRONG_BONUS_DMG);
+      this.matchSummary.dmgDealt += mfLoss;
+      this.matchSummary.quizStumped++;
+      this.opponent.marks.push({
+        value: BALANCE.QUIZ_BADGE_MARK_VALUE,
+        expiresAt: now + BALANCE.QUIZ_BADGE_DURATION_MS,
+      });
+      this.showNpcBadge('🤡 PLASTIC FAN', BALANCE.QUIZ_BADGE_DURATION_MS);
+      this.floatText(HIT_POS.opponent.x, HIT_POS.opponent.y, `-${mfLoss}`, '#22c55e', 0, '36px');
+      const healed = applyHeal(this.player, BALANCE.QUIZ_WRONG_HEAL);
+      if (healed > 0) this.floatText(420, 470, `+${healed}`, '#22c55e', 300, '24px');
+      this.cameras.main.shake(130, 0.005);
+    }
+    this.pendingAskBonus = 0;
   }
 
   /** Bắt đầu uống bia (Liquid Courage) — hở sườn 2s, sặc nếu ăn đòn. */
@@ -521,6 +756,13 @@ export class BattleScene extends Phaser.Scene {
     this.matchSummary.dmgDealt += mfLoss;
     this.floatText(HIT_POS.opponent.x + Phaser.Math.Between(-50, 50), HIT_POS.opponent.y, `-${mfLoss}`, '#fddb00', 0, '36px');
 
+    if (this.mode === 'pvp' && (kind === 'heavy' || kind === 'recover' || kind === 'silence')) {
+      this.link?.send({
+        t: 'act', clock: now,
+        action: { kind: 'tt', ttKind: kind, line, dmg, mfSelf: this.player.mf },
+      });
+    }
+
     if (kind === 'recover') {
       const gained = this.inspiration.player.recover(BALANCE.TT_RECOVER_INSPIRATION);
       const p = this.fxPos('player');
@@ -543,6 +785,20 @@ export class BattleScene extends Phaser.Scene {
   private runQuiz(quiz: QuizQuestion, bonusDmg: number) {
     const now = this.time.now;
     const npcName = `${this.opponent.team.name} fan`;
+
+    // PVP: gửi câu hỏi cho đối thủ THẬT trả lời (timer phía họ) — kết quả về qua quizAns
+    if (this.mode === 'pvp') {
+      this.pendingAskBonus = bonusDmg;
+      this.playerBubble.show(quiz.q, 0x22c55e);
+      this.banterLog.push({
+        side: 'player', name: 'You', time: this.clockLabel(now),
+        line: quiz.q, accent: 0x22c55e, avatarColor: this.player.team.color,
+      });
+      this.link?.send({ t: 'quizAsk', quiz, bonus: bonusDmg });
+      this.floatText(VIEW.W / 2, 380, 'QUIZ SENT — opponent answering...', '#22c55e', 0, '20px');
+      return;
+    }
+
     const npcAns = resolveNpcAnswer(quiz);
 
     // player "hỏi" → bubble + log (quiz = đòn fan-shaming, accent xanh lá)
@@ -592,9 +848,10 @@ export class BattleScene extends Phaser.Scene {
     });
   }
 
-  /** R2 Fact Check: hiện content type card NPC ĐỊNH đánh kế tiếp (tới khi NPC đánh). */
+  /** R2 Fact Check: hiện content type card NPC ĐỊNH đánh kế tiếp (tới khi NPC đánh).
+   *  PVP: không đọc được ý định người thật → NO READ. */
   private showNpcIntent() {
-    const intent = this.npcBrain.nextIntent;
+    const intent = this.npcBrain?.nextIntent ?? null;
     if (!intent) {
       this.floatText(NPC_POS.x, NPC_POS.y - 80, 'NO READ', '#9ca3af', 120, '20px');
       return;
@@ -814,6 +1071,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   private end(won: boolean) {
+    if (this.mode === 'pvp') setActiveLink(null); // gửi bye + đóng peer (1 trận / 1 kết nối)
     const data: ResultSceneData = { won, summary: { ...this.matchSummary } };
     this.scene.start(SCENES.RESULT, data);
   }

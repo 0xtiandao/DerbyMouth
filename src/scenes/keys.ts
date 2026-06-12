@@ -3,6 +3,7 @@ export const SCENES = {
   BOOT: 'boot',
   MENU: 'menu',
   PROFILE: 'profile',
+  PVP_LOBBY: 'pvplobby',
   STYLE_SELECT: 'styleselect',
   BATTLE: 'battle',
   RESULT: 'result',
