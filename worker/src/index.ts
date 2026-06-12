@@ -5,7 +5,7 @@
 import type { ContentType, QuizQuestion, TrashTalkOption } from '../../src/types';
 import { FALLBACK_ROASTS, FALLBACK_TRASHTALK, SAMPLE_QUIZ } from '../../src/data/fallbackRoasts';
 import type { Env } from './env';
-import { callGemini } from './ai';
+import { callAI } from './ai';
 import { buildQuizPrompt, buildRoastPrompt, buildTrashTalkPrompt } from './prompts';
 import {
   handleAuthNonce,
@@ -83,7 +83,7 @@ async function handleRoastBatch(request: Request, env: Env): Promise<Response> {
 
   // 2) gọi AI 1 lần cho cả 4 loại
   try {
-    const ai = (await callGemini(buildRoastPrompt(myTeam, oppTeam, count, body.avoid ?? []), env)) as
+    const ai = (await callAI(buildRoastPrompt(myTeam, oppTeam, count, body.avoid ?? []), env)) as
       Record<string, unknown>;
     for (const content of CONTENT_TYPES) {
       const lines = ai[content];
@@ -126,7 +126,7 @@ async function handleTrashTalkBatch(request: Request, env: Env): Promise<Respons
 
   if (!pool) {
     try {
-      const ai = (await callGemini(buildTrashTalkPrompt(myTeam, oppTeam, TT_SETS_PER_CALL), env)) as
+      const ai = (await callAI(buildTrashTalkPrompt(myTeam, oppTeam, TT_SETS_PER_CALL), env)) as
         { heavy?: unknown; recover?: unknown; silence?: unknown }[];
       if (!Array.isArray(ai) || ai.length === 0) throw new Error('bad ai shape');
       pool = ai.map((set) => [
@@ -173,7 +173,7 @@ async function handleQuiz(request: Request, env: Env): Promise<Response> {
 
   if (!pool) {
     try {
-      const ai = (await callGemini(buildQuizPrompt(teamName, difficulty, QUIZ_POOL_PER_CALL), env)) as
+      const ai = (await callAI(buildQuizPrompt(teamName, difficulty, QUIZ_POOL_PER_CALL), env)) as
         { q?: unknown; correct?: unknown; wrong?: unknown }[];
       if (!Array.isArray(ai) || ai.length === 0) throw new Error('bad ai shape');
       pool = ai

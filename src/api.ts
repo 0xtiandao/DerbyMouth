@@ -15,7 +15,7 @@ export const API_BASE =
 const LOW_WATER = 4; // buffer content type < 4 câu → refill ngầm
 const TT_LOW_WATER = 2; // còn < 2 bộ trash talk → refill
 const QUIZ_LOW_WATER = 1;
-const FETCH_TIMEOUT_MS = 25000; // batch AI lạnh (chưa cache) mất 15-20s — buffer chạy ngầm nên chờ được
+const FETCH_TIMEOUT_MS = 35000; // batch AI lạnh (chưa cache) mất 15-25s — buffer chạy ngầm nên chờ được
 const RECENT_KEEP = 8; // gửi 8 câu gần nhất lên worker để AI né lặp
 
 const CONTENT_TYPES: ContentType[] = ['rational', 'emotional', 'intimidation', 'fanshaming'];

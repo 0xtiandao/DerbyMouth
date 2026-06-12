@@ -18,9 +18,9 @@ export interface D1DatabaseLite {
 }
 
 export interface Env {
-  /** Local: worker/.dev.vars (gitignored). Deploy: `wrangler secret put AI_API_KEY`. */
+  /** Key Virtuals Compute. Local: worker/.dev.vars (gitignored). Deploy: `wrangler secret put AI_API_KEY`. */
   AI_API_KEY?: string;
-  /** Override model nếu cần (mặc định gemini-2.5-flash theo docs/PLAN.md). */
+  /** Override model nếu cần (mặc định anthropic/claude-sonnet-4-5 qua Virtuals). */
   AI_MODEL?: string;
   CACHE: KVNamespaceLite;
   DB: D1DatabaseLite;

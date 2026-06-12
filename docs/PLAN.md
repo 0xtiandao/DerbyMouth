@@ -311,7 +311,7 @@ Output JSON: {"q": "...", "correct": "...", "wrong": ["...","...","..."]}
 | Host | Cloudflare Pages | ✅ |
 | Art | Recraft / Sprite AI / Photopea / Piskel | ✅ |
 | SFX | Freesound / Pixabay (CC0) | ✅ |
-| **AI roast** | Gemini 2.5 Flash | 💲 trả phí |
+| **AI roast** | Virtuals Compute (Claude Opus 4.7 fast, free key cho agent) | ✅ (đổi từ Gemini 2026-06-12) |
 
 ---
 

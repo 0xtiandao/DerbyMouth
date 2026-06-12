@@ -172,6 +172,12 @@
     TTL 30 ngày.
   - Model: gemini-2.5-flash, retry 1 lần lỗi 5xx/429, vẫn fail → backup gemini-2.5-flash-lite
     (đã gặp 503 thật trong lúc test → thêm tầng này).
+  - ĐỔI PROVIDER (2026-06-12): Gemini → Virtuals Compute (free key cho agent). Route thực tế
+    KHÁC docs của họ: POST /v1/chat/completions (OpenAI format) + header x-api-key, trả 201;
+    /v1/messages (Anthropic format trong docs) trả 501; model id không có prefix "anthropic/"
+    (list từ GET /v1/models). Primary claude-opus-4-7-fast, backup gemini-3-flash-preview.
+    Batch lạnh ~20s → client FETCH_TIMEOUT nâng 35s. Test: roast/tt/quiz đều source ai,
+    cache hit ✓, chất lượng tốt.
   - Worker import FALLBACK_* + types từ ../src (DRY, wrangler tự bundle).
   - Đã test local với key thật: roast ai→cache ✓ (12 câu/loại, chất lượng ổn), trashtalk ai ✓,
     quiz ai ✓ (fact đúng — Lahm captain 2014), fallback ✓ (khi Gemini 503 thật),
