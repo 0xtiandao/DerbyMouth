@@ -87,20 +87,27 @@ export class StyleIndicator extends Phaser.GameObjects.Container {
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
-    this.circle = scene.add.circle(0, 0, 22, 0xffffff).setStrokeStyle(2, 0xffffff, 0.5);
-    this.label = addText(scene, 34, 0, '', {
-      fontSize: '20px',
-      color: '#ffffff',
+    // caption "STYLE" nhỏ → tách bạch đây là style, KHÔNG phải tên người chơi
+    const caption = addText(scene, 0, -13, 'STYLE', {
+      fontSize: '9px',
+      color: '#8a7a66',
+      fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+    this.circle = scene.add.circle(8, 4, 9, 0xffffff).setStrokeStyle(1.5, 0xffffff, 0.5);
+    this.label = addText(scene, 22, 4, '', {
+      fontSize: '15px',
+      color: '#dddddd',
       fontStyle: 'bold',
     }).setOrigin(0, 0.5);
     const buffPct = Math.round((BALANCE.STYLE_BUFF - 1) * 100);
-    this.advBadge = addText(scene, 34, 22, `▲ +${buffPct}% style advantage`, {
-      fontSize: '12px',
+    this.advBadge = addText(scene, 0, 20, `▲ +${buffPct}% advantage`, {
+      fontSize: '11px',
       color: '#fddb00',
+      fontStyle: 'bold',
     })
       .setOrigin(0, 0.5)
       .setVisible(false);
-    this.add([this.circle, this.label, this.advBadge]);
+    this.add([caption, this.circle, this.label, this.advBadge]);
     scene.add.existing(this);
   }
 
@@ -109,10 +116,10 @@ export class StyleIndicator extends Phaser.GameObjects.Container {
       this.circle.setFillStyle(STYLE_COLORS[style]);
       this.label.setText(STYLE_LABELS[style]);
       this.current = style;
-      // icon style (nếu đã có art) — đè lên chấm màu, contain trong đường kính ~40
+      // icon style (nếu đã có art) — đè lên chấm màu nhỏ
       this.icon?.destroy();
-      this.icon = styleIconImage(this.scene, style, 40);
-      if (this.icon) this.addAt(this.icon, 1); // trên circle, dưới label
+      this.icon = styleIconImage(this.scene, style, 22);
+      if (this.icon) this.addAt(this.icon.setPosition(8, 4), 1); // trên circle, dưới label
     }
     this.advBadge.setVisible(hasAdvantage);
   }
@@ -346,12 +353,12 @@ export class BanterLog extends Phaser.GameObjects.Container {
   ) {
     super(scene, x, y);
     const bg = scene.add
-      .rectangle(0, 0, boxW, boxH, 0x000000, 0.35)
+      .rectangle(0, 0, boxW, boxH, 0x0d0904, 0.78)
       .setOrigin(0)
-      .setStrokeStyle(1, 0xffffff, 0.18);
+      .setStrokeStyle(1, 0xffffff, 0.22);
     const title = addText(scene, this.pad, 8, 'BANTER LOG', {
       fontSize: '12px',
-      color: '#776655',
+      color: '#9a8c7a',
       fontStyle: 'bold',
     });
     this.add([bg, title]);
@@ -416,58 +423,75 @@ export class BanterLog extends Phaser.GameObjects.Container {
   }
 }
 
-/** Avatar nhân vật giữa màn (player/NPC): ảnh chibi theo đội nếu có art,
- *  không thì circle màu đội + mã đội (placeholder). Phase 5 thay art bằng cách
- *  thả Assetgrok/avatar/<teamID>.jpg — tự nhận, KHÔNG cần sửa code. */
+/** Avatar đội bóng (player/NPC): ảnh chibi theo đội MASK vào khung TRÒN (cắt nền baked),
+ *  neo phần đầu/vai, viền tròn MÀU ĐỘI. Chưa có art → circle màu đội + mã đội (placeholder).
+ *  Thả Assetgrok/avatar/<teamID>.jpg (hoặc _default) — tự nhận, KHÔNG cần sửa code. */
 export class AvatarView extends Phaser.GameObjects.Container {
-  private readonly circle: Phaser.GameObjects.Arc;
+  private readonly r: number;
+  private readonly bg: Phaser.GameObjects.Arc;
+  private readonly ring: Phaser.GameObjects.Graphics;
   private readonly initials: Phaser.GameObjects.Text;
   private art: Phaser.GameObjects.Image | null = null;
+  private maskG: Phaser.GameObjects.Graphics | null = null;
 
   constructor(
     scene: Phaser.Scene,
     x: number,
     y: number,
-    private readonly size: number, // chiều cao mục tiêu khi có art / đường kính circle ≈ size*0.62
-    private readonly faceLeft = false, // NPC quay mặt sang trái về phía player
+    size: number, // ≈ đường kính khung tròn
+    private readonly faceLeft = false,
   ) {
     super(scene, x, y);
-    const r = Math.round(size * 0.31);
-    this.circle = scene.add.circle(0, 0, r, 0x888888).setStrokeStyle(3, 0xffffff, 0.4);
+    this.r = Math.round(size * 0.45);
+    this.bg = scene.add.circle(0, 0, this.r, 0x222630);
     this.initials = addText(scene, 0, 0, '', {
-      fontSize: `${Math.round(r * 0.8)}px`,
+      fontSize: `${Math.round(this.r * 0.7)}px`,
       color: '#ffffff',
       fontStyle: 'bold',
     }).setOrigin(0.5);
-    this.add([this.circle, this.initials]);
+    this.ring = scene.add.graphics();
+    this.add([this.bg, this.initials, this.ring]); // art chèn giữa bg và ring khi có
     scene.add.existing(this);
   }
 
   setTeam(team: Team) {
+    const R = this.r;
+    this.ring.clear();
     const key = teamAvatarKey(team.id);
     if (key && this.scene.textures.exists(key)) {
       if (!this.art) {
         this.art = this.scene.add.image(0, 0, key);
-        this.addAt(this.art, 0);
+        this.addAt(this.art, 1); // trên bg, dưới ring
       }
       const tex = this.scene.textures.get(key).getSourceImage();
-      const scale = this.size / tex.height; // fit theo chiều cao, giữ tỉ lệ
-      this.art.setTexture(key).setScale(scale).setFlipX(this.faceLeft).setVisible(true);
-      this.circle.setVisible(false);
+      const scale = (R * 2) / Math.min(tex.width, tex.height); // cover hình tròn
+      const dispH = tex.height * scale;
+      this.art
+        .setTexture(key)
+        .setScale(scale)
+        .setFlipX(this.faceLeft)
+        .setPosition(0, Math.max(0, dispH / 2 - R)) // neo MÉP TRÊN → thấy đầu/vai, không phải bụng
+        .setVisible(true);
+      // mask tròn ở toạ độ THẾ GIỚI (geometry mask) → cắt nền cửa gỗ bị baked vào ảnh
+      if (!this.maskG) this.maskG = this.scene.make.graphics();
+      this.maskG.clear().fillStyle(0xffffff).fillCircle(this.x, this.y, R);
+      this.art.setMask(this.maskG.createGeometryMask());
+      this.bg.setFillStyle(0x222630);
       this.initials.setVisible(false);
+      this.ring.lineStyle(4, team.color, 1).strokeCircle(0, 0, R); // viền MÀU ĐỘI
     } else {
       this.art?.setVisible(false);
-      this.circle.setFillStyle(team.color).setVisible(true);
+      this.bg.setFillStyle(team.color);
       this.initials.setText(team.id).setVisible(true);
+      this.ring.lineStyle(3, 0xffffff, 0.5).strokeCircle(0, 0, R);
     }
   }
 
-  /** Tween "bối rối" khi NPC bị roast (thay cho rung avatar circle cũ). */
+  /** Tween "bối rối" khi bị roast: phóng nhẹ (không lệch mask vì giữ nguyên tâm). */
   fluster() {
-    const x0 = this.x;
     this.scene.tweens.add({
-      targets: this, x: x0 + 8, duration: 50, yoyo: true, repeat: 5,
-      onComplete: () => this.setX(x0),
+      targets: this, scaleX: 1.08, scaleY: 1.08, duration: 70, yoyo: true, repeat: 3,
+      onComplete: () => this.setScale(1),
     });
   }
 }

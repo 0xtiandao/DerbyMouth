@@ -91,6 +91,10 @@ export function addBackground(
   const tex = scene.textures.get(key).getSourceImage();
   const scale = Math.max(viewW / tex.width, viewH / tex.height);
   img.setScale(scale);
+  // scrim: phủ tối mờ để nền pub dịu lại → chữ HUD đọc rõ (nền rối làm chìm chữ)
+  scene.add
+    .rectangle(viewW / 2, viewH / 2, viewW, viewH, 0x140d07, 0.5)
+    .setDepth(-50);
   return img;
 }
 
