@@ -2,7 +2,7 @@
 // + connect wallet EVM (SIWE-lite) + xem stats on-record (D1).
 // Guest vẫn chơi được — chỉ không có stats on-record.
 import Phaser from 'phaser';
-import { TEAMS } from '../data/teams';
+import { TEAMS, teamById } from '../data/teams';
 import { VIEW } from '../core/view';
 import { loadProfile, saveProfile, fetchRemoteProfile, saveRemoteTeam } from '../profile';
 import { connectWallet, hasWallet, loadSession } from '../wallet';
@@ -10,13 +10,17 @@ import type { WalletSession } from '../wallet';
 import { SCENES } from './keys';
 import { addText, makeTextButton, setupView } from './ui';
 
-const GRID_COLS = 7;
+const GRID_COLS = 8;
+const CELL_W = 146;
+const CELL_H = 74;
+const GRID_TOP = 150;
 
 export class ProfileScene extends Phaser.Scene {
   private session: WalletSession | null = null;
   private ring!: Phaser.GameObjects.Arc;
   private walletText!: Phaser.GameObjects.Text;
   private statsText!: Phaser.GameObjects.Text;
+  private selectedName!: Phaser.GameObjects.Text;
   private teamPos = new Map<string, { x: number; y: number }>();
 
   constructor() {
@@ -33,58 +37,70 @@ export class ProfileScene extends Phaser.Scene {
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    addText(this, VIEW.W / 2, 96, 'Pick your team — AI roasts and quizzes use it', {
-      fontSize: '15px',
+    addText(this, VIEW.W / 2, 92, 'Pick your World Cup 2026 team — AI roasts & quizzes use it', {
+      fontSize: '14px',
       color: '#9a8c7a',
     }).setOrigin(0.5);
 
-    // ----- vòng highlight đội đang chọn -----
-    this.ring = this.add.circle(0, 0, 40).setStrokeStyle(4, 0xfddb00).setVisible(false);
+    // tên đội đang chọn (vì grid 48 đội chỉ hiện mã 3 chữ)
+    this.selectedName = addText(this, VIEW.W / 2, 116, '', {
+      fontSize: '15px',
+      color: '#fddb00',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
 
-    // ----- grid đội (teams.ts) -----
+    // ----- vòng highlight đội đang chọn -----
+    this.ring = this.add.circle(0, 0, 22).setStrokeStyle(3, 0xfddb00).setVisible(false);
+
+    // ----- grid 48 đội (mã 3 chữ) -----
     const profile = loadProfile();
+    const startX = VIEW.W / 2 - ((GRID_COLS - 1) * CELL_W) / 2;
     TEAMS.forEach((team, i) => {
       const col = i % GRID_COLS;
       const row = Math.floor(i / GRID_COLS);
-      const x = 190 + col * 150;
-      const y = 200 + row * 150;
+      const x = startX + col * CELL_W;
+      const y = GRID_TOP + row * CELL_H;
       this.teamPos.set(team.id, { x, y });
 
-      const c = this.add.circle(x, y, 32, team.color).setStrokeStyle(2, 0xffffff, 0.5);
-      addText(this, x, y + 50, team.name, { fontSize: '13px', color: '#cccccc' }).setOrigin(0.5);
+      const c = this.add.circle(x, y, 17, team.color).setStrokeStyle(2, 0xffffff, 0.45);
+      addText(this, x, y + 27, team.id, { fontSize: '11px', color: '#cccccc' }).setOrigin(0.5);
       c.setInteractive({ useHandCursor: true });
-      c.on('pointerover', () => c.setScale(1.12));
+      c.on('pointerover', () => { c.setScale(1.18); this.selectedName.setText(team.name); });
       c.on('pointerout', () => c.setScale(1));
       c.on('pointerdown', () => this.selectTeam(team.id));
     });
-    if (profile.teamId) this.moveRing(profile.teamId);
+    if (profile.teamId) {
+      this.moveRing(profile.teamId);
+      this.selectedName.setText(teamById(profile.teamId)?.name ?? '');
+    }
 
-    // ----- wallet -----
-    this.walletText = addText(this, VIEW.W / 2, 520, '', { fontSize: '15px', color: '#9a8c7a' })
+    // ----- wallet (dưới grid) -----
+    this.walletText = addText(this, VIEW.W / 2, 566, '', { fontSize: '14px', color: '#9a8c7a' })
       .setOrigin(0.5);
     if (this.session) {
       this.showConnected();
     } else if (hasWallet()) {
       this.walletText.setText('Connect wallet to keep stats on-record (sign only, no transaction)');
-      makeTextButton(this, VIEW.W / 2, 575, 'CONNECT WALLET', () => this.doConnect(), {
-        width: 260, height: 48, fontSize: '18px',
+      makeTextButton(this, VIEW.W / 2, 600, 'CONNECT WALLET', () => this.doConnect(), {
+        width: 260, height: 42, fontSize: '17px',
       });
     } else {
       this.walletText.setText('MetaMask not detected — playing as guest (stats stay on this device)');
     }
 
-    this.statsText = addText(this, VIEW.W / 2, 625, '', { fontSize: '15px', color: '#9a8c7a' })
+    this.statsText = addText(this, VIEW.W / 2, 628, '', { fontSize: '14px', color: '#9a8c7a' })
       .setOrigin(0.5);
     if (this.session) void this.refreshRemote();
 
-    makeTextButton(this, VIEW.W / 2, VIEW.H - 40, 'BACK', () => this.scene.start(SCENES.MENU), {
-      width: 180, height: 48, fontSize: '18px',
+    makeTextButton(this, VIEW.W / 2, VIEW.H - 32, 'BACK', () => this.scene.start(SCENES.MENU), {
+      width: 180, height: 44, fontSize: '18px',
     });
   }
 
   private selectTeam(teamId: string) {
     saveProfile({ teamId });
     this.moveRing(teamId);
+    this.selectedName.setText(teamById(teamId)?.name ?? '');
     if (this.session) void saveRemoteTeam(this.session, teamId);
   }
 
