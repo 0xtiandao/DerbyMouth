@@ -1,6 +1,7 @@
 // src/scenes/MenuScene.ts — task 1.2: title + nút "PVE Battle" → StyleSelectScene.
 import Phaser from 'phaser';
 import { VIEW } from '../core/view';
+import { addBackground } from '../data/sceneArt';
 import { SCENES } from './keys';
 import { addText, makeMuteButton, makeTextButton, setupView } from './ui';
 
@@ -11,6 +12,7 @@ export class MenuScene extends Phaser.Scene {
 
   create() {
     setupView(this);
+    addBackground(this, VIEW.W, VIEW.H, 0, 0.62); // pub bg + scrim đậm để title nổi
 
     addText(this, VIEW.W / 2, VIEW.H * 0.3, 'DERBYMOUTH', {
       fontSize: '72px',

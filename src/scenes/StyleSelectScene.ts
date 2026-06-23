@@ -4,7 +4,7 @@ import type { BattleSceneData, Style, StyleSelectSceneData } from '../types';
 import { BALANCE, STYLE_COLORS, STYLE_COUNTERS, STYLE_LABELS, STYLE_TAGLINES } from '../core/constants';
 import { VIEW } from '../core/view';
 import { getActiveLink } from '../pvp/PvpLink';
-import { styleIconImage } from '../data/sceneArt';
+import { addBackground, styleIconImage } from '../data/sceneArt';
 import { SCENES } from './keys';
 import { addText, setupView } from './ui';
 
@@ -24,6 +24,7 @@ export class StyleSelectScene extends Phaser.Scene {
 
   create() {
     setupView(this);
+    addBackground(this, VIEW.W, VIEW.H, 0, 0.58);
 
     addText(this, VIEW.W / 2, 52, this.mode === 'pvp' ? 'CHOOSE YOUR STYLE — PVP' : 'CHOOSE YOUR STYLE', {
       fontSize: '40px',

@@ -83,6 +83,7 @@ export function addBackground(
   viewW: number,
   viewH: number,
   seed = 0,
+  scrim = 0.5, // độ tối lớp phủ; màn nhiều UI/chữ (menu, profile) dùng cao hơn
 ): Phaser.GameObjects.Image | null {
   if (BG_KEYS.length === 0) return null;
   const key = BG_KEYS[((seed % BG_KEYS.length) + BG_KEYS.length) % BG_KEYS.length];
@@ -91,9 +92,9 @@ export function addBackground(
   const tex = scene.textures.get(key).getSourceImage();
   const scale = Math.max(viewW / tex.width, viewH / tex.height);
   img.setScale(scale);
-  // scrim: phủ tối mờ để nền pub dịu lại → chữ HUD đọc rõ (nền rối làm chìm chữ)
+  // scrim: phủ tối mờ để nền pub dịu lại → chữ đọc rõ (nền rối làm chìm chữ)
   scene.add
-    .rectangle(viewW / 2, viewH / 2, viewW, viewH, 0x140d07, 0.5)
+    .rectangle(viewW / 2, viewH / 2, viewW, viewH, 0x140d07, scrim)
     .setDepth(-50);
   return img;
 }

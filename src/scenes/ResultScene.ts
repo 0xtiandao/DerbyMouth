@@ -6,6 +6,7 @@ import { recordMatch } from '../stats';
 import { postMatchResult } from '../profile';
 import { loadSession } from '../wallet';
 import { sfx } from '../audio';
+import { addBackground } from '../data/sceneArt';
 import { SCENES } from './keys';
 import { addText, makeTextButton, setupView } from './ui';
 
@@ -24,6 +25,7 @@ export class ResultScene extends Phaser.Scene {
 
   create() {
     setupView(this);
+    addBackground(this, VIEW.W, VIEW.H, 0, 0.62);
     this.time.delayedCall(150, () => sfx.play(this.won ? 'win' : 'lose'));
     const stats = recordMatch(this.won); // ghi localStorage 1 lần mỗi trận
 

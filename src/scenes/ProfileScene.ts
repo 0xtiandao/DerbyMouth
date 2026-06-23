@@ -7,6 +7,7 @@ import { VIEW } from '../core/view';
 import { loadProfile, saveProfile, fetchRemoteProfile, saveRemoteTeam } from '../profile';
 import { connectWallet, hasWallet, loadSession } from '../wallet';
 import type { WalletSession } from '../wallet';
+import { addBackground } from '../data/sceneArt';
 import { SCENES } from './keys';
 import { addText, makeTextButton, setupView } from './ui';
 
@@ -29,6 +30,7 @@ export class ProfileScene extends Phaser.Scene {
 
   create() {
     setupView(this);
+    addBackground(this, VIEW.W, VIEW.H, 0, 0.66); // grid 48 đội đông → scrim đậm
     this.session = loadSession();
 
     addText(this, VIEW.W / 2, 48, 'YOUR PROFILE', {
