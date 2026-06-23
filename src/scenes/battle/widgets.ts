@@ -2,7 +2,7 @@
 // Chỉ là lớp hiển thị: nhận giá trị từ core qua refresh(), KHÔNG chứa logic gameplay.
 // Phase 5 thay graphics bằng asset thật thì sửa từng widget ở đây.
 import Phaser from 'phaser';
-import type { CardDef, Style } from '../../types';
+import type { CardDef, Style, Team } from '../../types';
 import {
   BALANCE,
   CONTENT_COLORS,
@@ -10,6 +10,7 @@ import {
   STYLE_COLORS,
   STYLE_LABELS,
 } from '../../core/constants';
+import { styleIconImage, teamAvatarKey } from '../../data/sceneArt';
 import { addText } from '../ui';
 
 /** Thanh Mental Focus: nền + fill co theo máu + label số. */
@@ -82,6 +83,7 @@ export class StyleIndicator extends Phaser.GameObjects.Container {
   private readonly label: Phaser.GameObjects.Text;
   private readonly advBadge: Phaser.GameObjects.Text;
   private current: Style | null = null;
+  private icon: Phaser.GameObjects.Image | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
@@ -107,6 +109,10 @@ export class StyleIndicator extends Phaser.GameObjects.Container {
       this.circle.setFillStyle(STYLE_COLORS[style]);
       this.label.setText(STYLE_LABELS[style]);
       this.current = style;
+      // icon style (nếu đã có art) — đè lên chấm màu, contain trong đường kính ~40
+      this.icon?.destroy();
+      this.icon = styleIconImage(this.scene, style, 40);
+      if (this.icon) this.addAt(this.icon, 1); // trên circle, dưới label
     }
     this.advBadge.setVisible(hasAdvantage);
   }
@@ -184,6 +190,9 @@ export class StyleSwitchButton extends Phaser.GameObjects.Container {
         this.onPick(style);
       });
       this.picker!.add([c, name]);
+      const icon = styleIconImage(scene, style, 34); // icon đè lên chấm màu (nếu có art)
+      if (icon) this.picker!.add(icon.setPosition(px, 0).setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => { this.closePicker(); this.onPick(style); }));
     });
     this.add(this.picker);
   }
@@ -404,6 +413,62 @@ export class BanterLog extends Phaser.GameObjects.Container {
       e.node.setAlpha(i === this.entries.length - 1 ? 1 : 0.8);
       yCursor -= 10;
     }
+  }
+}
+
+/** Avatar nhân vật giữa màn (player/NPC): ảnh chibi theo đội nếu có art,
+ *  không thì circle màu đội + mã đội (placeholder). Phase 5 thay art bằng cách
+ *  thả Assetgrok/avatar/<teamID>.jpg — tự nhận, KHÔNG cần sửa code. */
+export class AvatarView extends Phaser.GameObjects.Container {
+  private readonly circle: Phaser.GameObjects.Arc;
+  private readonly initials: Phaser.GameObjects.Text;
+  private art: Phaser.GameObjects.Image | null = null;
+
+  constructor(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    private readonly size: number, // chiều cao mục tiêu khi có art / đường kính circle ≈ size*0.62
+    private readonly faceLeft = false, // NPC quay mặt sang trái về phía player
+  ) {
+    super(scene, x, y);
+    const r = Math.round(size * 0.31);
+    this.circle = scene.add.circle(0, 0, r, 0x888888).setStrokeStyle(3, 0xffffff, 0.4);
+    this.initials = addText(scene, 0, 0, '', {
+      fontSize: `${Math.round(r * 0.8)}px`,
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.add([this.circle, this.initials]);
+    scene.add.existing(this);
+  }
+
+  setTeam(team: Team) {
+    const key = teamAvatarKey(team.id);
+    if (key && this.scene.textures.exists(key)) {
+      if (!this.art) {
+        this.art = this.scene.add.image(0, 0, key);
+        this.addAt(this.art, 0);
+      }
+      const tex = this.scene.textures.get(key).getSourceImage();
+      const scale = this.size / tex.height; // fit theo chiều cao, giữ tỉ lệ
+      this.art.setTexture(key).setScale(scale).setFlipX(this.faceLeft).setVisible(true);
+      this.circle.setVisible(false);
+      this.initials.setVisible(false);
+    } else {
+      this.art?.setVisible(false);
+      this.circle.setFillStyle(team.color).setVisible(true);
+      this.initials.setText(team.id).setVisible(true);
+    }
+  }
+
+  /** Tween "bối rối" khi NPC bị roast (thay cho rung avatar circle cũ). */
+  fluster() {
+    const x0 = this.x;
+    this.scene.tweens.add({
+      targets: this, x: x0 + 8, duration: 50, yoyo: true, repeat: 5,
+      onComplete: () => this.setX(x0),
+    });
   }
 }
 

@@ -2,6 +2,7 @@
 import Phaser from 'phaser';
 import { VIEW } from '../core/view';
 import { CARD_ART, cardArtKey } from '../data/cardArt';
+import { sceneArtToLoad } from '../data/sceneArt';
 import { SCENES } from './keys';
 import { addText, setupView } from './ui';
 
@@ -22,7 +23,12 @@ export class BootScene extends Phaser.Scene {
     for (const [id, url] of Object.entries(CARD_ART)) {
       this.load.image(cardArtKey(id), url);
     }
-    // Phase 5 TODO: avatar nhân vật, background quán bia, style icon, SFX.
+    // Phase 5: background quán bia + avatar đội + icon style (sceneArt.ts glob).
+    // Chưa thả ảnh → list rỗng → game tự dùng placeholder graphics.
+    for (const { key, url } of sceneArtToLoad()) {
+      this.load.image(key, url);
+    }
+    // Phase 5 TODO: SFX file thật (hiện procedural Web Audio trong audio.ts).
   }
 
   create() {

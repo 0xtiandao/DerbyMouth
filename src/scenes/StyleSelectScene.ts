@@ -4,6 +4,7 @@ import type { BattleSceneData, Style, StyleSelectSceneData } from '../types';
 import { BALANCE, STYLE_COLORS, STYLE_COUNTERS, STYLE_LABELS, STYLE_TAGLINES } from '../core/constants';
 import { VIEW } from '../core/view';
 import { getActiveLink } from '../pvp/PvpLink';
+import { styleIconImage } from '../data/sceneArt';
 import { SCENES } from './keys';
 import { addText, setupView } from './ui';
 
@@ -57,12 +58,15 @@ export class StyleSelectScene extends Phaser.Scene {
 
       const circle = this.add.circle(x, y, nodeR, STYLE_COLORS[style]);
       circle.setStrokeStyle(3, 0xffffff, 0.6);
-      addText(this, x, y, STYLE_LABELS[style], {
+      // icon style (nếu có art) — badge tròn đè lên node màu, contain ~đường kính node
+      const icon = styleIconImage(this, style, nodeR * 1.9);
+      icon?.setPosition(x, y);
+      addText(this, x, y + (icon ? nodeR + 16 : 0), STYLE_LABELS[style], {
         fontSize: '16px',
-        color: '#1a120b',
+        color: icon ? '#ffffff' : '#1a120b',
         fontStyle: 'bold',
       }).setOrigin(0.5);
-      addText(this, x, y + nodeR + 18, STYLE_TAGLINES[style], {
+      addText(this, x, y + nodeR + (icon ? 38 : 18), STYLE_TAGLINES[style], {
         fontSize: '14px',
         color: '#aaaaaa',
       }).setOrigin(0.5);

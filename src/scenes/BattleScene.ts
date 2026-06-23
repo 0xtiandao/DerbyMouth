@@ -42,6 +42,7 @@ import { SCENES } from './keys';
 import { addText, makeMuteButton, setupView } from './ui';
 import { sfx } from '../audio';
 import {
+  AvatarView,
   BanterLog,
   BeerButton,
   CardView,
@@ -51,6 +52,7 @@ import {
   StyleIndicator,
   StyleSwitchButton,
 } from './battle/widgets';
+import { addBackground } from '../data/sceneArt';
 import { QtePromptView, TrashTalkMenu } from './battle/qte';
 import { QuizPanel } from './battle/quiz';
 
@@ -99,7 +101,8 @@ export class BattleScene extends Phaser.Scene {
   private qte!: TrashTalkQTE;
   private qtePrompt!: QtePromptView;
   private ttMenu!: TrashTalkMenu;
-  private npcAvatar!: Phaser.GameObjects.Arc;
+  private npcAvatar!: AvatarView;
+  private playerAvatar!: AvatarView;
   private quizPanel!: QuizPanel;
   private npcBadge: Phaser.GameObjects.Container | null = null;
   private pendingQuiz: QuizQuestion | null = null;
@@ -173,6 +176,10 @@ export class BattleScene extends Phaser.Scene {
       BALANCE.HAND_SIZE,
     );
 
+    // ----- Background quán bia (Phase 5) — fallback: nền tối mặc định nếu chưa có art.
+    //       Seed theo cặp đội để mỗi trận có thể đổi bg (khi có nhiều file). -----
+    addBackground(this, VIEW.W, VIEW.H, this.player.team.id.length + this.opponent.team.id.length);
+
     // ----- Đối thủ (trên) -----
     this.styleOpp = new StyleIndicator(this, 56, 50);
     addText(this, 40, 88, `${this.opponent.team.name} fan ${this.mode === 'pvp' ? '(P2)' : '(NPC)'}`, {
@@ -181,10 +188,10 @@ export class BattleScene extends Phaser.Scene {
     }).setOrigin(0, 0.5);
     this.mfBarOpp = new MfBar(this, 40, 118, 460, 20, 0xef4444);
 
-    this.npcAvatar = this.add
-      .circle(NPC_POS.x, NPC_POS.y, 48, this.opponent.team.color)
-      .setStrokeStyle(3, 0xffffff, 0.4);
-    addText(this, NPC_POS.x, NPC_POS.y + 62, this.opponent.team.name, {
+    // Avatar NPC giữa màn: art chibi theo đội nếu có (sceneArt), không thì circle màu đội.
+    this.npcAvatar = new AvatarView(this, NPC_POS.x, NPC_POS.y, 150, true);
+    this.npcAvatar.setTeam(this.opponent.team);
+    addText(this, NPC_POS.x, NPC_POS.y + 88, this.opponent.team.name, {
       fontSize: '16px',
       color: '#aaaaaa',
     }).setOrigin(0.5);
@@ -201,6 +208,10 @@ export class BattleScene extends Phaser.Scene {
     this.switchBtn = new StyleSwitchButton(this, 290, 428, (style) => {
       this.styles.switchTo('player', style, this.time.now);
     });
+
+    // Avatar player giữa-trái (đối diện NPC): art chibi theo đội nếu có, không thì circle.
+    this.playerAvatar = new AvatarView(this, 150, 318, 150, false);
+    this.playerAvatar.setTeam(this.player.team);
 
     // ----- Liquid Courage: nút bia cạnh nút switch -----
     this.beer = new BeerChannel(this.player);
@@ -789,7 +800,7 @@ export class BattleScene extends Phaser.Scene {
     }
 
     // NPC "bối rối"
-    this.tweens.add({ targets: this.npcAvatar, x: NPC_POS.x + 8, duration: 50, yoyo: true, repeat: 5 });
+    this.npcAvatar.fluster();
   }
 
   // ================= task 2.2: Quiz PVE =================

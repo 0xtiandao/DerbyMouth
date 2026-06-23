@@ -273,8 +273,16 @@ Còn lại cho deploy (Phase 5): KV namespace thật + wrangler secret + siết 
         card chưa có art tự fallback placeholder. CardView đổi tỉ lệ 2:3 khớp ảnh 768×1152.
         Đã cắm R1, R2 (test batch) — chạy ngon trong trận. THẢ THÊM <ID>.jpg LÀ TỰ HIỆN.
   - [ ] Còn 18 card art (R3-R5, F1-F5, B1-B5, P1-P5) — sinh tiếp bằng Grok cùng style, drop vào Assetgrok/.
-  - [ ] Avatar nhân vật giữa màn (player + NPC, theo đội) + background quán bia + 4 style icon.
-        Có thể theo cùng pattern glob; quyết định: art direction = CHIBI CARTOON (Grok), KHÔNG pixel.
+  - [x] Pipeline avatar + background + style icon (code, 2026-06-23 — dev#2): `src/data/sceneArt.ts`
+        glob CÙNG pattern cardArt.ts, 3 thư mục con của Assetgrok/ (kèm README hướng dẫn thả ảnh):
+          • `Assetgrok/bg/*` → background quán bia (cover full màn, nhiều file = chọn theo seed cặp đội)
+          • `Assetgrok/avatar/<teamID>.jpg` (+ `_default`) → AvatarView giữa màn (player trái, NPC giữa)
+          • `Assetgrok/style/<style>.jpg` → icon đè StyleIndicator + picker switch + StyleSelectScene
+        Tất cả CÓ fallback placeholder (circle màu đội + mã đội / nền tối / chấm màu style) → chưa thả
+        ảnh vẫn chạy. THẢ ẢNH ĐÚNG TÊN LÀ TỰ HIỆN, không cần sửa code. Đã verify Edge headless: avatar
+        ECU/ALG + bg fallback + style circle hiển thị đúng, không lỗi console.
+  - [ ] Sinh ảnh thật (dev#1, Grok/FLUX chibi): `_default` avatar trước (phủ 48 đội), bg quán bia,
+        4 style icon (rebuttal/filibuster/bluster/provocation) — drop vào Assetgrok/{avatar,bg,style}/.
 - [x] SFX ✅ (2026-06-16): `src/audio.ts` — SoundManager tổng hợp âm bằng Web Audio API
       (procedural oscillator+noise+envelope, KHÔNG file asset, không phụ thuộc Phaser).
       18 SFX: click/cardPlay/hit/counter/combo2-3/heal/beerStart-Done/choke/silence/
