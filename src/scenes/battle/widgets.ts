@@ -407,44 +407,51 @@ export class BanterLog extends Phaser.GameObjects.Container {
   }
 }
 
-/** 1 lá bài trên tay: khung + cost + tên + dải màu content type. */
+/** 1 lá bài trên tay: art chibi (nếu có) + cost + tên + dải màu content type. */
 export class CardView extends Phaser.GameObjects.Container {
-  static readonly W = 140;
-  static readonly H = 175;
+  // tỉ lệ 2:3 khớp art Grok (768×1152) → cover không méo, không crop
+  static readonly W = 128;
+  static readonly H = 192;
 
   private readonly frame: Phaser.GameObjects.Rectangle;
   private readonly costText: Phaser.GameObjects.Text;
   private readonly nameText: Phaser.GameObjects.Text;
+  private readonly nameBar: Phaser.GameObjects.Rectangle;
   private readonly strip: Phaser.GameObjects.Rectangle;
   private readonly stripLabel: Phaser.GameObjects.Text;
+  private art: Phaser.GameObjects.Image | null = null;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y);
     const { W, H } = CardView;
 
     this.frame = scene.add.rectangle(0, 0, W, H, 0x2d2418).setStrokeStyle(2, 0xffffff);
-    const costCircle = scene.add.circle(-W / 2 + 18, -H / 2 + 18, 15, 0x1f2a44)
+    const costCircle = scene.add.circle(-W / 2 + 17, -H / 2 + 17, 15, 0x1f2a44)
       .setStrokeStyle(2, 0x9ecbff);
-    this.costText = addText(scene, -W / 2 + 18, -H / 2 + 18, '', {
+    this.costText = addText(scene, -W / 2 + 17, -H / 2 + 17, '', {
       fontSize: '17px',
       color: '#9ecbff',
       fontStyle: 'bold',
     }).setOrigin(0.5);
+    // tên: khi có art nằm trên 1 dải tối mờ phía dưới (dễ đọc), khi placeholder ở giữa
+    this.nameBar = scene.add.rectangle(0, H / 2 - 30, W - 4, 22, 0x000000, 0.55)
+      .setOrigin(0.5)
+      .setVisible(false);
     this.nameText = addText(scene, 0, -8, '', {
-      fontSize: '15px',
+      fontSize: '14px',
       color: '#ffffff',
       fontStyle: 'bold',
       align: 'center',
       wordWrap: { width: W - 16 },
     }).setOrigin(0.5);
-    this.strip = scene.add.rectangle(0, H / 2 - 13, W - 4, 22, 0xffffff).setOrigin(0.5);
-    this.stripLabel = addText(scene, 0, H / 2 - 13, '', {
-      fontSize: '12px',
+    this.strip = scene.add.rectangle(0, H / 2 - 11, W - 4, 20, 0xffffff).setOrigin(0.5);
+    this.stripLabel = addText(scene, 0, H / 2 - 11, '', {
+      fontSize: '11px',
       color: '#1a120b',
       fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add([this.frame, costCircle, this.costText, this.nameText, this.strip, this.stripLabel]);
+    this.add([this.frame, this.nameBar, this.nameText, costCircle, this.costText, this.strip, this.stripLabel]);
     this.setSize(W, H);
     scene.add.existing(this);
 
@@ -455,6 +462,26 @@ export class CardView extends Phaser.GameObjects.Container {
   }
 
   setCard(card: CardDef) {
+    const { W, H } = CardView;
+    const artKey = `card-${card.id}`;
+    const hasArt = this.scene.textures.exists(artKey);
+
+    if (hasArt) {
+      if (!this.art) {
+        this.art = this.scene.add.image(0, 0, artKey);
+        this.addAt(this.art, 1); // trên frame, dưới cost/name/strip
+      }
+      this.art.setTexture(artKey).setDisplaySize(W, H).setVisible(true);
+      this.frame.setFillStyle(0x2d2418, 0); // art đã có nền/khung riêng
+      this.nameBar.setVisible(true);
+      this.nameText.setPosition(0, H / 2 - 30); // tên trên dải tối dưới đáy
+    } else {
+      this.art?.setVisible(false);
+      this.frame.setFillStyle(0x2d2418, 1);
+      this.nameBar.setVisible(false);
+      this.nameText.setPosition(0, -8); // tên giữa lá placeholder
+    }
+
     this.frame.setStrokeStyle(2, CONTENT_COLORS[card.content]);
     this.costText.setText(String(card.cost));
     this.nameText.setText(card.name);

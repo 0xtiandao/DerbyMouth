@@ -383,13 +383,15 @@ Dùng pool roast pre-generate offline, chưa cắm AI live.
 
 ## 6. TẠO ASSET — TỪNG BƯỚC (toàn bộ FREE)
 
-### 6.1. Card art (quan trọng nhất, ảnh 2/4)
-Mỗi card có 1 nhân vật biểu cảm (Good For You = mặt vui, Wronged = mặt tủi...).
-1. Recraft / Grok Imagine, prompt:
-   > "2D cartoon chibi football fan, exaggerated facial expression [happy/sad/confused/cocky], simple flat colors, playing card illustration, transparent background"
-2. Sinh 10-15 biểu cảm khác nhau (1 cho mỗi card).
-3. Photopea: crop, xóa nền, gắn vào khung card (vẽ khung 1 lần dùng chung).
-4. Lưu `public/assets/cards/`.
+### 6.1. Card art (quan trọng nhất, ảnh 2/4) — ĐÃ CHỐT HƯỚNG (2026-06-16)
+Art direction: **chibi cartoon sinh bằng Grok** (KHÔNG pixel art). Mỗi card 1 nhân vật fan biểu cảm.
+1. Grok Imagine, prompt kiểu:
+   > "2D cartoon chibi football fan in red kit, exaggerated [angry/smug/confused/cocky] expression, holding [prop hợp card], thick outline, flat colors, playing card illustration"
+2. Sinh 1 ảnh cho mỗi card, **đặt tên file = card ID** (R1.jpg, B3.jpg...).
+3. **Thả vào thư mục `Assetgrok/`** ở root. KHÔNG cần crop/xóa nền/sửa code:
+   `src/data/cardArt.ts` glob tự nhận, BootScene load, CardView hiện (tỉ lệ 2:3, ảnh 768×1152 chuẩn).
+   Card chưa có file → tự dùng placeholder. Đã cắm R1+R2 chạy trong trận.
+4. (tùy chọn) Avatar/background/style icon theo cùng pattern.
 
 ### 6.2. Style icon (ảnh 1, 4 icon vòng tròn)
 1. Vẽ 4 icon đơn giản (Rebuttal/Filibuster/Bluster/Provocation) bằng Canva hoặc SVG tay.

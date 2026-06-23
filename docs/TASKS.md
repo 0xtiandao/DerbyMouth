@@ -266,6 +266,15 @@ Còn lại cho deploy (Phase 5): KV namespace thật + wrangler secret + siết 
     đội hello ≠ đội battle khi chưa có profile), drain Inspiration sync ✓, QTE prompt nổ ✓.
   - CHƯA làm (để sau): Quick Match/matchmaking rivalry, betting điểm trash talk, reconnect.
 
-## PHASE 5 — Art + Audio + Deploy
-- [ ] Thay placeholder bằng asset thật (docs/PLAN.md mục 6 có hướng dẫn tạo từng asset)
-- [ ] SFX + deploy Cloudflare Pages + Worker
+## PHASE 5 — Art + Audio + Deploy (đang làm)
+- [~] Thay placeholder bằng asset thật (docs/PLAN.md mục 6)
+  - [x] Card art pipeline: chibi cartoon sinh bằng Grok, đặt trong `Assetgrok/<cardID>.{jpg,png}`.
+        Vite glob (`src/data/cardArt.ts`) tự nhận file → BootScene load → CardView hiện art,
+        card chưa có art tự fallback placeholder. CardView đổi tỉ lệ 2:3 khớp ảnh 768×1152.
+        Đã cắm R1, R2 (test batch) — chạy ngon trong trận. THẢ THÊM <ID>.jpg LÀ TỰ HIỆN.
+  - [ ] Còn 18 card art (R3-R5, F1-F5, B1-B5, P1-P5) — sinh tiếp bằng Grok cùng style, drop vào Assetgrok/.
+  - [ ] Avatar nhân vật giữa màn (player + NPC, theo đội) + background quán bia + 4 style icon.
+        Có thể theo cùng pattern glob; quyết định: art direction = CHIBI CARTOON (Grok), KHÔNG pixel.
+- [ ] SFX (đập bàn, cốc bia, BANG, còi VAR, cười)
+- [ ] Deploy: wrangler login + KV namespace thật + `wrangler d1 create derbymouth` + `wrangler secret put AI_API_KEY`
+      + siết CORS về origin Pages + đổi API_BASE client sang cùng origin + UI nhập room code PVP (thay window.prompt)
