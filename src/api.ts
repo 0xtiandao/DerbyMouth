@@ -6,11 +6,14 @@ import { FALLBACK_ROASTS, FALLBACK_TRASHTALK } from './data/fallbackRoasts';
 import { pickQuizFor } from './core/quiz';
 
 // Local dev: worker chạy riêng cổng 8787 (`npm run worker:dev`).
-// Deploy (Phase 5): cùng origin, route /api/* → worker.
+// Deploy (Phase 5):
+//   - Pages Functions (same-origin /api/*): để VITE_API_BASE trống.
+//   - Worker riêng (workers.dev): set VITE_API_BASE=https://<worker>.workers.dev khi build.
+const ENV_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
 export const API_BASE =
   typeof location !== 'undefined' && ['localhost', '127.0.0.1'].includes(location.hostname)
     ? 'http://127.0.0.1:8787'
-    : '';
+    : ENV_BASE;
 
 const LOW_WATER = 4; // buffer content type < 4 câu → refill ngầm
 const TT_LOW_WATER = 2; // còn < 2 bộ trash talk → refill
