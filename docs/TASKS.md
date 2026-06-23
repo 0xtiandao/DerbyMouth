@@ -275,6 +275,11 @@ Còn lại cho deploy (Phase 5): KV namespace thật + wrangler secret + siết 
   - [ ] Còn 18 card art (R3-R5, F1-F5, B1-B5, P1-P5) — sinh tiếp bằng Grok cùng style, drop vào Assetgrok/.
   - [ ] Avatar nhân vật giữa màn (player + NPC, theo đội) + background quán bia + 4 style icon.
         Có thể theo cùng pattern glob; quyết định: art direction = CHIBI CARTOON (Grok), KHÔNG pixel.
-- [ ] SFX (đập bàn, cốc bia, BANG, còi VAR, cười)
+- [x] SFX ✅ (2026-06-16): `src/audio.ts` — SoundManager tổng hợp âm bằng Web Audio API
+      (procedural oscillator+noise+envelope, KHÔNG file asset, không phụ thuộc Phaser).
+      18 SFX: click/cardPlay/hit/counter/combo2-3/heal/beerStart-Done/choke/silence/
+      qtePrompt/quizWrong-Right/switchStyle/win/lose/knockout. Unlock trên gesture đầu
+      (autoplay policy), nút mute 🔊/🔇 (Menu + Battle) lưu localStorage. Wire hết event
+      chính trong BattleScene + ResultScene. Swap sang sound thật (CC0) sau chỉ đổi play().
 - [ ] Deploy: wrangler login + KV namespace thật + `wrangler d1 create derbymouth` + `wrangler secret put AI_API_KEY`
       + siết CORS về origin Pages + đổi API_BASE client sang cùng origin + UI nhập room code PVP (thay window.prompt)

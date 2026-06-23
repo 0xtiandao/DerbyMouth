@@ -1,6 +1,7 @@
 // src/scenes/ui.ts — helper UI placeholder dùng chung (Phase 1, chưa có asset).
 import Phaser from 'phaser';
 import { RENDER_SCALE, TEXT_RESOLUTION, VIEW } from '../core/view';
+import { sfx } from '../audio';
 
 /** Gọi đầu create() của MỌI scene: camera vẽ vùng thiết kế VIEW vào
  *  framebuffer supersample (chống mờ). Toạ độ trong scene vẫn là 1280x720. */
@@ -54,6 +55,26 @@ export function makeTextButton(
   container.setInteractive({ useHandCursor: true });
   container.on('pointerover', () => rect.setFillStyle(hover));
   container.on('pointerout', () => rect.setFillStyle(bg));
-  container.on('pointerdown', onTap);
+  container.on('pointerdown', () => {
+    sfx.unlock(); // user gesture → mở khoá audio
+    sfx.play('click');
+    onTap();
+  });
   return container;
+}
+
+/** Nút bật/tắt tiếng (🔊/🔇), góc trên phải. Trạng thái lưu localStorage. */
+export function makeMuteButton(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Text {
+  const label = () => (sfx.isMuted ? '🔇' : '🔊');
+  const t = addText(scene, x, y, label(), { fontSize: '22px' })
+    .setOrigin(0.5)
+    .setInteractive({ useHandCursor: true })
+    .setAlpha(0.8);
+  t.on('pointerdown', () => {
+    sfx.unlock();
+    sfx.toggleMute();
+    t.setText(label());
+    if (!sfx.isMuted) sfx.play('click');
+  });
+  return t;
 }

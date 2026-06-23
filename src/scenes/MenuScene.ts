@@ -2,7 +2,7 @@
 import Phaser from 'phaser';
 import { VIEW } from '../core/view';
 import { SCENES } from './keys';
-import { addText, makeTextButton, setupView } from './ui';
+import { addText, makeMuteButton, makeTextButton, setupView } from './ui';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -34,5 +34,7 @@ export class MenuScene extends Phaser.Scene {
     makeTextButton(this, VIEW.W / 2, VIEW.H * 0.52 + 164, 'PROFILE', () => {
       this.scene.start(SCENES.PROFILE);
     }, { width: 220, height: 52, fontSize: '20px' });
+
+    makeMuteButton(this, VIEW.W - 34, 34);
   }
 }

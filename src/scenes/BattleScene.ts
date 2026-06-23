@@ -39,7 +39,8 @@ import { loadProfile } from '../profile';
 import { getActiveLink, setActiveLink } from '../pvp/PvpLink';
 import type { PvpLink, PvpMessage } from '../pvp/PvpLink';
 import { SCENES } from './keys';
-import { addText, setupView } from './ui';
+import { addText, makeMuteButton, setupView } from './ui';
+import { sfx } from '../audio';
 import {
   BanterLog,
   BeerButton,
@@ -253,11 +254,14 @@ export class BattleScene extends Phaser.Scene {
         ? { x: 170, y: 392 }
         : { x: NPC_POS.x, y: NPC_POS.y - 95 };
       this.floatText(pos.x, pos.y, `→ ${STYLE_LABELS[e.to]}`, '#ffffff', 0, '20px');
+      sfx.play('switchStyle');
       // PVP: switch của mình → báo đối thủ
       if (e.side === 'player' && this.mode === 'pvp') {
         this.link?.send({ t: 'act', clock: e.at, action: { kind: 'switch', style: e.to } });
       }
     });
+
+    makeMuteButton(this, VIEW.W - 30, 70);
 
     // ----- Hand 4 card -----
     this.handViews = this.hand.map((card, i) => {
@@ -282,6 +286,7 @@ export class BattleScene extends Phaser.Scene {
     const beerHealed = this.beer.tick(now);
     if (beerHealed > 0) {
       this.floatText(420, 470, `+${beerHealed} 🍺`, '#22c55e', 0, '26px');
+      sfx.play('beerDone');
     }
     this.beerBtn.refresh({
       ready: this.beer.canStart(now),
@@ -314,6 +319,7 @@ export class BattleScene extends Phaser.Scene {
         case 'promptShown':
           this.qtePrompt.show(qteEvent.key);
           this.flashNpcBubble();
+          sfx.play('qtePrompt');
           break;
         case 'promptMissed':
           this.qtePrompt.hide();
@@ -374,6 +380,7 @@ export class BattleScene extends Phaser.Scene {
     const won = oppDead;
     this.floatText(VIEW.W / 2, 380, 'KNOCKOUT!', '#fddb00', 0, '52px');
     this.cameras.main.shake(250, 0.008);
+    sfx.play('knockout');
     this.time.delayedCall(1200, () => this.end(won));
   }
 
@@ -408,6 +415,7 @@ export class BattleScene extends Phaser.Scene {
       return;
     }
 
+    sfx.play('cardPlay');
     // 2) câu roast theo content type (Phase 2 thay bằng AI buffer, fallback giữ nguyên)
     const line = this.pickRoast(card.content, 'player');
     this.playerBubble.show(line, CONTENT_COLORS[card.content]);
@@ -427,6 +435,7 @@ export class BattleScene extends Phaser.Scene {
     this.showHitFeedback(result, 'opponent');
     if (result.healed > 0) {
       this.floatText(420, 470, `+${result.healed}`, '#22c55e', 300, '24px');
+      sfx.play('heal');
     }
     this.matchSummary.dmgDealt += result.mfLoss;
     if (result.final > this.matchSummary.biggestHit) this.matchSummary.biggestHit = result.final;
@@ -486,6 +495,7 @@ export class BattleScene extends Phaser.Scene {
       this.floatText(HIT_POS.player.x, HIT_POS.player.y - 42, 'CHOKED! 🍺', '#ef4444', 100, '28px');
       this.floatText(HIT_POS.player.x + 80, HIT_POS.player.y, `-${extra}`, '#ef4444', 220, '24px');
       this.cameras.main.shake(150, 0.006);
+      sfx.play('choke');
     }
 
     this.applyImmediateEffects(card, now, 'opponent');
@@ -663,6 +673,7 @@ export class BattleScene extends Phaser.Scene {
     if (this.ending) return;
     if (!this.beer.start(this.time.now)) return; // cooldown / đang uống
     this.floatText(360, 380, 'GLUG GLUG...', '#fddb00', 0, '18px');
+    sfx.play('beerStart');
   }
 
   private showHitFeedback(result: DamageBreakdown & { mfLoss: number }, victim: Side) {
@@ -670,12 +681,15 @@ export class BattleScene extends Phaser.Scene {
     // jitter ngang để các con số không đè nhau khi đánh nhanh
     const jx = pos.x + Phaser.Math.Between(-50, 50);
     this.floatText(jx, pos.y, `-${result.mfLoss}`, '#ffffff', 0, '36px');
+    sfx.play('hit');
     if (result.countered) {
       const pct = Math.round((BALANCE.CONTENT_COUNTER_MULT - 1) * 100);
       this.floatText(pos.x, pos.y + 40, `COUNTERED! +${pct}%`, '#fddb00', 120, '24px');
+      sfx.play('counter');
     }
     if (result.comboLevel >= 2) {
       this.floatText(pos.x, pos.y + 75, `COMBO x${result.comboLevel}`, '#ff9f43', 240, '24px');
+      sfx.play(result.comboLevel === 3 ? 'combo3' : 'combo2');
     }
     // đòn lớn → screen shake nhẹ ("Pub Knockout moment")
     if (result.countered || result.comboLevel === 3) {
@@ -826,6 +840,7 @@ export class BattleScene extends Phaser.Scene {
           // NPC đúng → phản damage lại người hỏi
           const { mfLoss } = applyDamage(this.player, BALANCE.QUIZ_CORRECT_REFLECT_DMG);
           this.floatText(HIT_POS.player.x, HIT_POS.player.y, `-${mfLoss} REFLECT`, '#ef4444', 0, '26px');
+          sfx.play('quizWrong');
         } else {
           // NPC sai → damage lớn + badge "fan nửa mùa" + mark (nhận thêm dmg)
           // + Crowd Lifesteal: nó quê = mày sướng → hồi máu
@@ -841,6 +856,7 @@ export class BattleScene extends Phaser.Scene {
           });
           this.showNpcBadge('🤡 PLASTIC FAN', BALANCE.QUIZ_BADGE_DURATION_MS);
           this.cameras.main.shake(130, 0.005);
+          sfx.play('quizRight');
         }
         this.tweens.add({ targets: this.npcAvatar, x: NPC_POS.x + 8, duration: 50, yoyo: true, repeat: 5 });
       },
@@ -936,6 +952,7 @@ export class BattleScene extends Phaser.Scene {
           applySilence(victimState, fx.durationMs ?? 0, now);
           const p = HIT_POS[victim];
           this.floatText(p.x, p.y + 110, 'SILENCED', '#9ca3af', 120, '22px');
+          sfx.play('silence');
           break;
         }
         // Scholar (task 2.1) — chỉ phía player (NPC không có hệ QTE nhắm vào player)
