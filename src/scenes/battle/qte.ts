@@ -4,6 +4,11 @@ import Phaser from 'phaser';
 import type { QteKey } from '../../core/TrashTalkQTE';
 import { addText } from '../ui';
 
+// Vị trí 2 nút — đối xứng quanh tâm 640, ở dải giữa-dưới (tránh banter log bên phải 920+
+// và HUD bên trái). Q bên trái tâm, E bên phải tâm.
+const QPOS: Record<QteKey, number> = { Q: 460, E: 820 };
+const QY = 392;
+
 /** 2 nút Q (trái) / E (phải) tap-to cho mobile, phím cứng cho desktop.
  *  Nút cần nhấn sáng vàng + vòng đếm ngược; nút kia mờ (tap nhầm = mất cơ hội). */
 export class QtePromptView extends Phaser.GameObjects.Container {
@@ -17,8 +22,8 @@ export class QtePromptView extends Phaser.GameObjects.Container {
     this.ring = scene.add.graphics();
 
     const make = (key: QteKey, x: number) => {
-      const circle = scene.add.circle(x, 360, 54, 0x1a1208, 0.9).setStrokeStyle(4, 0xfddb00);
-      const letter = addText(scene, x, 360, key, {
+      const circle = scene.add.circle(x, QY, 54, 0x1a1208, 0.9).setStrokeStyle(4, 0xfddb00);
+      const letter = addText(scene, x, QY, key, {
         fontSize: '52px',
         color: '#fddb00',
         fontStyle: 'bold',
@@ -27,7 +32,7 @@ export class QtePromptView extends Phaser.GameObjects.Container {
       circle.on('pointerdown', () => this.onPress(key));
       return { circle, letter };
     };
-    this.zones = { Q: make('Q', 240), E: make('E', 1040) };
+    this.zones = { Q: make('Q', QPOS.Q), E: make('E', QPOS.E) };
     this.add([this.ring, this.zones.Q.circle, this.zones.Q.letter, this.zones.E.circle, this.zones.E.letter]);
     this.setDepth(30);
     this.setVisible(false);
@@ -62,10 +67,10 @@ export class QtePromptView extends Phaser.GameObjects.Container {
   refreshRing(progress: number) {
     this.ring.clear();
     if (!this.visible || progress <= 0) return;
-    const x = this.target === 'Q' ? 240 : 1040;
+    const x = QPOS[this.target];
     this.ring.lineStyle(5, 0xffffff, 0.9);
     this.ring.beginPath();
-    this.ring.arc(x, 360, 64, Phaser.Math.DegToRad(-90), Phaser.Math.DegToRad(-90 + 360 * progress));
+    this.ring.arc(x, QY, 64, Phaser.Math.DegToRad(-90), Phaser.Math.DegToRad(-90 + 360 * progress));
     this.ring.strokePath();
   }
 

@@ -662,11 +662,14 @@ import { effectiveCost } from './CombatEngine';
   const insp = new InspirationSystem(st, NOW);
   insp.spend(5);
   insp.applySlowRegen(30, 60000, NOW);
-  // mốc đầu đặt từ constructor (trước khi slow) → vẫn +1 tại NOW+2000
+  // mốc đầu đặt từ constructor (trước khi slow) → vẫn +1 tại NOW+REGEN_MS
   check('mốc cũ vẫn +1', insp.tick(NOW + BALANCE.INSPIRATION_REGEN_MS), 1);
-  // mốc kế giãn: 2000 / 0.7 ≈ 2857ms
-  check('slow: chưa tới mốc giãn', insp.tick(NOW + 4857), 0);
-  check('slow: +1 ở mốc giãn', insp.tick(NOW + 4858), 1);
+  // mốc kế GIÃN: interval = REGEN_MS / (1-30%) → suy từ hằng số (robust khi tune)
+  const stretchMark = Math.ceil(
+    BALANCE.INSPIRATION_REGEN_MS + BALANCE.INSPIRATION_REGEN_MS / 0.7,
+  );
+  check('slow: chưa tới mốc giãn', insp.tick(NOW + stretchMark - 1), 0);
+  check('slow: +1 ở mốc giãn', insp.tick(NOW + stretchMark), 1);
 }
 
 // ============================================================

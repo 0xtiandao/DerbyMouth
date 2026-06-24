@@ -4,7 +4,7 @@ import type { ContentType, Style } from '../types';
 export const BALANCE = {
   MF_MAX: 1000,
   INSPIRATION_MAX: 10,
-  INSPIRATION_REGEN_MS: 2000,   // +1 mỗi 2s
+  INSPIRATION_REGEN_MS: 2600,   // +1 mỗi 2.6s (giãn nhịp — trước 2000 thấy dồn dập)
   HAND_SIZE: 4,
 
   STYLE_SWITCH_COOLDOWN_MS: 15000,
@@ -26,7 +26,7 @@ export const BALANCE = {
   PROMPT_CHECK_INTERVAL_MS: 5000,
   PROMPT_ANGER_BONUS: 0.1,      // P3 Crying Jordan: NPC tilted → dễ trigger hơn
   ANGER_DURATION_MS: 12000,
-  QTE_WINDOW_MS: 1200,          // thời gian nhấn Q/E
+  QTE_WINDOW_MS: 2200,          // thời gian nhấn Q/E (nới rộng cho dễ bấm)
   TT_HEAVY_DMG_PCT: 150,        // % của 1 đòn chuẩn (xem ghi chú dưới)
   TT_MEDIUM_DMG_PCT: 40,
   TT_STANDARD_HIT: 100,         // "đòn chuẩn" = 100 dmg để tính % trash talk
@@ -36,7 +36,7 @@ export const BALANCE = {
   QUIZ_WRONG_BONUS_DMG: 80,
   QUIZ_ANSWER_TIME_MS: 6000,    // PVP: thời gian đối thủ trả lời quiz
   // Quiz PVE (task 2.2)
-  TT_QUIZ_OPTION_CHANCE: 0.35,  // xác suất option heavy trong menu bị thay bằng quiz
+  TT_QUIZ_OPTION_CHANCE: 0.6,   // xác suất option heavy trong menu bị thay bằng quiz (tăng quiz)
   QUIZ_NPC_CORRECT_EASY: 0.65,  // % NPC trả lời đúng theo độ khó
   QUIZ_NPC_CORRECT_MEDIUM: 0.45,
   QUIZ_NPC_CORRECT_HARD: 0.25,
@@ -57,8 +57,8 @@ export const BALANCE = {
   BEER_COOLDOWN_MS: 25000,      // tính từ lúc BẮT ĐẦU uống — sặc vẫn mất lượt
 
   // NPC
-  NPC_PLAY_INTERVAL_MIN_MS: 3000,
-  NPC_PLAY_INTERVAL_MAX_MS: 5000,
+  NPC_PLAY_INTERVAL_MIN_MS: 4500,  // giãn nhịp NPC tấn công (trước 3000) — bớt dồn dập
+  NPC_PLAY_INTERVAL_MAX_MS: 7000,  // (trước 5000)
   NPC_STYLE_SWITCH_MIN_MS: 20000,
   NPC_STYLE_SWITCH_MAX_MS: 30000,
   NPC_POOR_RETRY_MS: 1000,      // nghèo Inspiration → thử chơi lại sau
